@@ -1,66 +1,21 @@
-## Foundry
+# Mini721 🐥
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+I wanted to understand the EVM on an opcode level and found that implementing an ultra-minimal ERC721 was a fun way to do exactly that. 🚀
 
-Foundry consists of:
+---
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+## Deploy Mini on Anvil
 
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
+```bash
+cast send \
+--rpc-url http://127.0.0.1:8545 \
+--private-key 0xYOURPRIVATEKEY \
+--legacy \
+--create "0x335f55601c600e5f39601c5ff3fe60056014565b6340c10f19146012575f80fd5b005b5f3560e01c9056"
 ```
 
-### Test
+## Test the Mini with Foundry
 
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
+```bash
+    solc --strict-assembly yul/Mini721.yul --bin > out/Mini721.bin
 ```

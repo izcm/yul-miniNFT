@@ -48,10 +48,9 @@ object "Mini721" {
 
       // --- dispatcher ---
       switch selector() 
-      case 0x40c10f19 /* mint(address, uint256) */ {
-
+        case 0x40c10f19 /* mint(address, uint256) */ {
       }
-      default {
+        default {
         revert(0x00, 0x00) /* no match */
       }
 
