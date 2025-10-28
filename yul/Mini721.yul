@@ -63,7 +63,7 @@ object "Mini721" {
 
         // get storage slot
         let id := sload(totalSupplyPos())
-        let slot := add(baseSlotOwnersPos(), id)
+        let slot := add(ownersBasePos(), id)
 
         // write new owner
         sstore(slot, to) 
@@ -92,7 +92,7 @@ object "Mini721" {
         pos := 0x01
       }
 
-      function baseSlotOwnersPos() -> pos {
+      function ownersBasePos() -> pos {
         pos := 0x10
       }
 
