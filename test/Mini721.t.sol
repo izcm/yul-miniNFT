@@ -6,13 +6,14 @@ import {console} from "forge-std/console.sol";
 
 contract Mini721Test is Test {
     // mini721's bytecode
-    bytes bytecode = hex"335f55601c600e5f39601c5ff3fe60056014565b6340c10f19146012575f80fd5b005b5f3560e01c9056";
+    bytes bytecode = hex"335f556080600e5f3960805ff3fe6005606e565b636a627842146012575f80fd5b60043560601c8015602657602490602a565b005b5f80fd5b60306076565b54908082603a607b565b01556001820160466076565b555f7fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef8180a4565b5f3560e01c90565b600190565b60109056";
 
     // mini's storage memory layout
     uint256 slotOwner = 0x00;
     uint256 slotTotalSupply = 0x01;
 
     address deployed;
+    address user;
 
     // -----------------------
     // SETUP
@@ -25,6 +26,8 @@ contract Mini721Test is Test {
      *  to make sure the constructor actually returned the correct runtime segment.
      */
     function setUp() public {
+        user = makeAddr("user");
+
         // copy storage -> memory
         bytes memory creation = bytecode;
 
@@ -83,13 +86,19 @@ contract Mini721Test is Test {
         assertEq(totalSupply, 0);
     }
 
-    function test_IncrementsTotalSupply() external view {
-        assertTrue(true);
-    }
-
     // -----------------------
     // MINTING
     // -----------------------
+    function test_MintingIncrementsTotalSupply() external {
+        uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
+        
+        (bool ok, ) = 
+            deployed.call(bytes.concat(hex"6a627842", bytes32(uint256(uint160(user)))));
+        require(ok, "call failed");
+
+        uint256 supplyAfter = loadSlotValue(deployed, slotTotalSupply);
+        assertEq(supplyBefore + 1, supplyAfter);
+    }
 
     // -----------------------
     // 🔧 PRIVATE HELPERS

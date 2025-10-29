@@ -50,19 +50,19 @@ object "Mini721" {
 
       // --- dispatcher ---
       switch selector() 
-        case 0x40c10f19 /* mint(address, uint256) */ {
+        case 0x6a627842  /* mint(address) */ {
+          // calldataload(4) to load word beyond 4 byte selector + address is 160 bits => right shift 96 bits
+          let to := shr(96, calldataload(4))
+          if iszero(to) { revert(0x00, 0x00) } // no address found
+
+          mint(to)
       }
         default {
         revert(0x00, 0x00) /* no match */
       }
 
       // --- external interactions ---
-      function mint() {
-        // calldataload(4) to load word beyond 4 byte selector
-        // address is 160 bits => right shift 96 bits
-        let to := shr(96, calldataload(4))
-        if iszero(to) { revert(0x00, 0x00) } // no address found
-
+      function mint(to) {
         // load to-be tokenId + next available slot in owners mapping  
         let id := sload(totalSupplyPos())
         let slot := add(ownersBasePos(), id)
