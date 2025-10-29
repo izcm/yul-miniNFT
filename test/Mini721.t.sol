@@ -14,6 +14,16 @@ contract Mini721Test is Test {
 
     address deployed;
 
+    // -----------------------
+    // SETUP
+    // -----------------------
+
+    /**
+     *  @dev Deploys the Mini721 Yul contract manually using `create`.
+     *
+     *  We run the post-deployment verification `runtimeCodeIsDeployedCorrectly`
+     *  to make sure the constructor actually returned the correct runtime segment.
+     */
     function setUp() public {
         // copy storage -> memory
         bytes memory creation = bytecode;
@@ -35,12 +45,17 @@ contract Mini721Test is Test {
         }
 
         console.log("Mini721 deployed at:  %s", deployed);
+        runtimeCodeIsDeployedCorrectly();
     }
 
-    // -----------------------
-    // DEPLOYMENT
-    // -----------------------
-    function test_RuntimeCodeIsDeployedCorrectly() external view {
+    /**
+     * @dev Ensures the deployed Mini721 contract actually matches
+     * the runtime compiled from `Mini721.yul`.
+     *
+     * This doesn’t test contract logic — it catches setup or deployment
+     * issues (e.g. wrong byte offsets, truncated code, or bad CREATE params).
+     */
+    function runtimeCodeIsDeployedCorrectly() internal view {
         bytes memory creation = bytecode;
 
         uint256 pos = bytePosition(creation, bytes1(0xfe)); // 0xfe
@@ -53,6 +68,9 @@ contract Mini721Test is Test {
         assertEq(runtime, deployed.code);
     }
 
+    // -----------------------
+    // DEPLOYMENT
+    // -----------------------
     function test_OwnerIsSetToDeployer() external view {
         uint256 value = loadSlotValue(deployed, slotOwner);
         address deployer = address(uint160(value));

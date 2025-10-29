@@ -21,6 +21,8 @@
 
 // ❗ TODO: bitpack totalSupply etc etc and see if its possible to utilize the whole 32 byte word loaded in selector() (just for the heck of it, its a demo)
 // ❗ TODO: i want modes for nft so ill do a mode bitpacked with the 256-bit storage slot
+// ❗ TODO: some cool revert function that returns some hardcoded "failed because ABC" ?
+
 //  [  1 bit   |      95 bits empty     |   160 bits address   ] - in the mapping (address is only 160 bits)
 
 object "Mini721" {
