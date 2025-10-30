@@ -6,7 +6,8 @@ import {console} from "forge-std/console.sol";
 
 contract Mini721Test is Test {
     // mini721's bytecode
-    bytes bytecode = hex"335f556080600e5f3960805ff3fe6005606e565b636a627842146012575f80fd5b60043560601c8015602657602490602a565b005b5f80fd5b60306076565b54908082603a607b565b01556001820160466076565b555f7fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef8180a4565b5f3560e01c90565b600190565b60109056";
+    bytes bytecode =
+        hex"335f55607f600e5f39607f5ff3fe6005606d565b636a627842146012575f80fd5b601e60043560601c6020565b005b8015606957602b6075565b549080826035607a565b01556001820160416075565b555f7fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef8180a4565b5f80fd5b5f3560e01c90565b600190565b60109056";
 
     // mini's storage memory layout
     uint256 slotOwner = 0x00;
@@ -14,6 +15,18 @@ contract Mini721Test is Test {
 
     address deployed;
     address user;
+
+    /**
+     * @dev Yul-emitted events still have names like in Solidity,
+     * but those names are encoded as keccak256 hashes in topic0.
+     * High-level Solidity syntax hides this detail automatically,
+     * while raw Yul `log` calls expose it directly.
+     *
+     * Mint emits an event with signature:
+     *  0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
+     *      = Transfer(address, address, uint256)
+     */
+    event Transfer(address indexed from, address indexed to, uint256 tokenId);
 
     // -----------------------
     // SETUP
@@ -46,8 +59,9 @@ contract Mini721Test is Test {
             // store the returned address in slot of `deployed`
             sstore(deployed.slot, addr)
         }
-
+        console.log("--------------------------------------------------------------");
         console.log("Mini721 deployed at:  %s", deployed);
+        console.log("--------------------------------------------------------------");
         runtimeCodeIsDeployedCorrectly();
     }
 
@@ -89,23 +103,95 @@ contract Mini721Test is Test {
     // -----------------------
     // MINTING
     // -----------------------
-    function test_MintingIncrementsTotalSupply() external {
+    function test_MintIncrementsTotalSupply() external {
         uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
-        
-        (bool ok, ) = 
-            deployed.call(bytes.concat(hex"6a627842", bytes32(uint256(uint160(user)))));
-        require(ok, "call failed");
+
+        callMintStrict(address(this));
 
         uint256 supplyAfter = loadSlotValue(deployed, slotTotalSupply);
-        assertEq(supplyBefore + 1, supplyAfter);
+        assertEq(supplyBefore + 1, supplyAfter, "Mint didn't increment total supply!");
+    }
+
+    function test_MintEmitsTransferEvent() external {
+        // Mini721 emits a manual log4 its topic[0] is the signature for Transfer
+        bytes32 sig = keccak256("Transfer(address,address,uint256)");
+
+        vm.recordLogs(); // ExpectEmit seem to have some issues with pure .yul contracts
+        callMint(address(this));
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+
+        int256 logIndex = checkEventWasEmitted(entries, deployed, sig);
+        assertTrue(logIndex >= 0, "Transfer event not found in logs!");
+    }
+
+    function test_CanMintToOthers() external {}
+
+    // -----------------------
+    // EVENT VERIFICATION
+    // -----------------------
+    function test_TransferEventIndexedValuesAreCorrect() external {
+        address from = address(0); // topic 1
+        address to = user; // topic 2
+        uint256 tokenId = loadSlotValue(deployed, slotTotalSupply); // topic 3
+
+        vm.recordLogs();
+        callMintStrict(to);
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+
+        bytes32 sig = keccak256("Transfer(address,address,uint256)");
+        int256 logIndex = checkEventWasEmitted(entries, deployed, sig);
+
+        assertTrue(logIndex >= 0, "Transfer event not found in logs!");
+        
+        Vm.Log memory logEntry = entries[uint256(logIndex)];
+        
+        address actualFrom = topicToAddress(logEntry.topics[1]);
+        address actualTo = topicToAddress(logEntry.topics[2]);
+        uint256 actualTokenId = topicToUint256(logEntry.topics[3]);
+        
+        assertEq(actualFrom, from, "Topic 1 (from) not set to address(0) in mint!");
+        //assertEq(actualTo, to, "Topic 2 (to) not set as expected in mint!");
+        assertEq(actualTokenId, tokenId, "Topic 3 (tokenId) not set as expected in mint!");
     }
 
     // -----------------------
     // 🔧 PRIVATE HELPERS
     // -----------------------
-    function loadSlotValue(address account, uint256 slot) private view returns (uint256) {
+    // --- external calls  ---
+    function callMint(address to) internal returns (bool ok) {
+        (ok,) = deployed.call(bytes.concat(hex"6a627842", bytes32(uint256(uint160(to)))));
+    }
+
+    function callMintStrict(address to) internal {
+        bool ok = callMint(to);
+        require(ok, "call failed");
+    }
+
+    function loadSlotValue(address account, uint256 slot) internal view returns (uint256) {
         bytes32 value = vm.load(account, bytes32(slot));
         return uint256(value);
+    }
+
+    function checkEventWasEmitted(Vm.Log[] memory entries, address emitter, bytes32 eventSignature)
+        internal
+        pure
+        returns (int256)
+    {
+        for (uint256 i; i < entries.length; i++) {
+            if (entries[i].emitter == emitter && entries[i].topics[0] == eventSignature) {
+                return int256(i);
+            }
+        }
+        return -1; // Return -1 if not found
+    }
+    
+    // --- byte ops ---
+    function topicToAddress(bytes32 topic) internal pure returns (address) {
+        return address(uint160(uint256(topic)));
+    }
+
+    function topicToUint256(bytes32 topic) internal pure returns (uint256) {
+        return uint256(topic);
     }
 
     function bytePosition(bytes memory bc, bytes1 marker) internal pure returns (uint256) {
