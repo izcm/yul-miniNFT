@@ -35,9 +35,6 @@ object "Mini721" {
   // the hash works as a pointer to where the bytecode is stored
   
   code {
-    // saves the contract creator (deployer) as the initial owner
-    sstore(0x00, caller())  
-
     // copies code from execution context to memory
     // equivalent to opcode 0x39 CODECOPY
     datacopy(0x00, dataoffset("runtime"), datasize("runtime"))
@@ -92,20 +89,11 @@ object "Mini721" {
 
       // --- storage layout ---
       function totalSupplyPos() -> pos {
-        pos := 0x01
+        pos := 0x00
       }
 
       function ownersBasePos() -> pos {
         pos := 0x10
-      }
-
-      // --- access eval ---
-      function owner() -> o {
-        o := sload(0x00)
-      }
-
-      function callerIsOwner () -> owns {
-        owns := eq(caller(), owner())
       }
 
       // --- utility ---

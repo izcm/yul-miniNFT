@@ -14,7 +14,6 @@ contract Mini721Test is Test {
     uint256 slotTotalSupply = 0x01;
 
     address deployed;
-    address user;
 
     /**
      * @dev Yul-emitted events still have names like in Solidity,
@@ -39,8 +38,6 @@ contract Mini721Test is Test {
      *  to make sure the constructor actually returned the correct runtime segment.
      */
     function setUp() public {
-        user = makeAddr("user");
-
         // copy storage -> memory
         bytes memory creation = bytecode;
 
@@ -88,13 +85,6 @@ contract Mini721Test is Test {
     // -----------------------
     // DEPLOYMENT
     // -----------------------
-    function test_OwnerIsSetToDeployer() external view {
-        uint256 value = loadSlotValue(deployed, slotOwner);
-        address deployer = address(uint160(value));
-
-        assertEq(deployer, address(this));
-    }
-
     function test_TotalSupplyStartsAtZero() external view {
         uint256 totalSupply = loadSlotValue(deployed, slotTotalSupply);
         assertEq(totalSupply, 0);
@@ -113,7 +103,7 @@ contract Mini721Test is Test {
     }
 
     function test_MintEmitsTransferEvent() external {
-        // Mini721 emits a manual log4 its topic[0] is the signature for Transfer
+        // Mini721 emits a manual log4 topic[0] *should* be the signature for `Transfer(address,address,uint256)`
         bytes32 sig = keccak256("Transfer(address,address,uint256)");
 
         vm.recordLogs(); // ExpectEmit seem to have some issues with pure .yul contracts
@@ -124,14 +114,22 @@ contract Mini721Test is Test {
         assertTrue(logIndex >= 0, "Transfer event not found in logs!");
     }
 
-    function test_CanMintToOthers() external {}
+    // since address(this) mints in all the other 
+    function test_MintUserCanMint() external {
+        address user = makeAddr("user");
+        vm.startPrank(user);
+        callMintStrict(user);
+        vm.stopPrank();
+    }
+
+    function test_MintUserCanMintToOthers() external {}
 
     // -----------------------
     // EVENT VERIFICATION
     // -----------------------
-    function test_TransferEventIndexedValuesAreCorrect() external {
+    function test_TransferEventTopicsAreCorrect() external {
         address from = address(0); // topic 1
-        address to = user; // topic 2
+        address to = address(this); // topic 2
         uint256 tokenId = loadSlotValue(deployed, slotTotalSupply); // topic 3
 
         vm.recordLogs();
@@ -142,13 +140,13 @@ contract Mini721Test is Test {
         int256 logIndex = checkEventWasEmitted(entries, deployed, sig);
 
         assertTrue(logIndex >= 0, "Transfer event not found in logs!");
-        
+
         Vm.Log memory logEntry = entries[uint256(logIndex)];
-        
+
         address actualFrom = topicToAddress(logEntry.topics[1]);
         address actualTo = topicToAddress(logEntry.topics[2]);
         uint256 actualTokenId = topicToUint256(logEntry.topics[3]);
-        
+
         assertEq(actualFrom, from, "Topic 1 (from) not set to address(0) in mint!");
         //assertEq(actualTo, to, "Topic 2 (to) not set as expected in mint!");
         assertEq(actualTokenId, tokenId, "Topic 3 (tokenId) not set as expected in mint!");
@@ -157,6 +155,7 @@ contract Mini721Test is Test {
     // -----------------------
     // 🔧 PRIVATE HELPERS
     // -----------------------
+
     // --- external calls  ---
     function callMint(address to) internal returns (bool ok) {
         (ok,) = deployed.call(bytes.concat(hex"6a627842", bytes32(uint256(uint160(to)))));
@@ -184,7 +183,7 @@ contract Mini721Test is Test {
         }
         return -1; // Return -1 if not found
     }
-    
+
     // --- byte ops ---
     function topicToAddress(bytes32 topic) internal pure returns (address) {
         return address(uint160(uint256(topic)));
