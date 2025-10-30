@@ -9,13 +9,15 @@
 
   Storage layout:
     0x00 - TotalSupply
-    0x01 - BaseURI  
+
     -- some offset for future vars --
-    0x10 - Base slot mapping tokenId => address
+    0x10 - base slot holders
 
   No keccak hashing of slots in mapping
   Instead: increment from offset + overwrite past ownership
   Reason: slight gas improvement 
+
+  Revert error strings and baseURI are baked into the bytecode
 */
 
 // ❗ TODO: bitpack totalSupply etc etc and see if its possible to utilize the whole 32 byte word loaded in selector() (just for the heck of it, its a demo)
@@ -43,17 +45,23 @@ object "Mini721" {
   // contract’s on-chain bytecode
   object "runtime" {
     code {
+      // protects against sending eth
+      require(iszero(callvalue())) 
 
       // --- dispatcher ---
       switch selector() 
-        case 0x6a627842  /* mint(address) */ {
-          // calldataload(4) to load word beyond 4 byte selector + address is 160 bits => right shift 96 bits
-          let to := shr(96, calldataload(4))
-          
-          mint(to)
-          stop()
+      case 0x6a627842  /* mint(address) */ {
+        // calldataload(4) to load word beyond 4 byte selector + address is 160 bits => right shift 96 bits
+        let to := shr(96, calldataload(4))
+        mint(to)
+      } 
+      case 0x18160ddd /* totalSupply() */ {
+        totalSupply()
       }
-        default {
+      case 0xc87b56dd /* tokenURI(id) */ {
+        tokenURI(0) //using address 0 just tmp
+      }
+      default {
         revert(0x00, 0x00) /* no match */
       }
 
@@ -61,12 +69,12 @@ object "Mini721" {
       function mint(to) {
         if iszero(to) { revert(0x00, 0x00) } // no address found
 
-        // load to-be tokenId + next available slot in owners mapping  
+        // load to-be tokenId + next available slot in holders mapping  
         let id := sload(totalSupplyPos())
-        let slot := add(ownersBasePos(), id)
+        let slot := add(holdersBasePos(), id)
 
-        // write mini's new owner
-        sstore(slot, to) 
+        // write new holder to mapping
+        sstore(slot, to)
 
         // increment totalSupply
         sstore(totalSupplyPos(), add(id, 1))
@@ -81,6 +89,20 @@ object "Mini721" {
         )
       }
 
+      function totalSupply() {
+        let ts := sload(totalSupplyPos())
+
+        mstore(0x00, ts)
+        return(0x00, 0x20)
+      }
+
+      // ❗ TODO: a simple nft mode to learn low-level bitpacking so this will be more dynamic 
+      // ❗ will use tokenId param l8r for some simple dynamic stuff
+      function tokenURI(id) {
+        datacopy(0, dataoffset("BASE_URI"), datasize("BASE_URI"))
+        return(0, datasize("BASE_URI"))
+      }
+
       // --- calldata ops ---
       function selector() -> s {
         s := shr(224, calldataload(0))  // discards all but 4 byte selector => right-shift 224 bits
@@ -91,7 +113,7 @@ object "Mini721" {
         pos := 0x00
       }
 
-      function ownersBasePos() -> pos {
+      function holdersBasePos() -> pos {
         pos := 0x10
       }
 
@@ -100,5 +122,8 @@ object "Mini721" {
         if iszero(condition) { revert(0x00, 0x00) } // given condition is false => stop program
       }
     }
+
+    data "BASE_URI" "ipfs://QmVGpuAXvgDMdJEow6YK6BdXck66ENWRELdMs1pmL8D9bF/"
+
   }
 }

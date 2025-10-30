@@ -7,24 +7,17 @@ import {console} from "forge-std/console.sol";
 contract Mini721Test is Test {
     // mini721's bytecode
     bytes bytecode =
-        hex"607e600b5f39607e5ff3fe6005606d565b636a627842146012575f80fd5b601e60043560601c6020565b005b8015606957602b6075565b5490808260356079565b01556001820160416075565b555f7fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef8180a4565b5f80fd5b5f3560e01c90565b5f90565b60109056";
-
-    // mini's storage memory layout
-    uint256 slotTotalSupply = 0x00;
+        hex"60fd61000c5f3960fd5ff3fe6007341560bc565b600d60ab565b80636a62784214603757806318160ddd1460335763c87b56dd14602e575f80fd5b5f60a0565b6092565b604360043560601c6045565b005b8015608e57605060b3565b54908082605a60b7565b015560018201606660b3565b555f7fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef8180a4565b5f80fd5b609860b3565b545f5260205ff35b603660c75f3960365ff35b5f3560e01c90565b5f90565b601090565b1560c257565b5f80fdfe697066733a2f2f516d5647707541587667444d644a456f7736594b36426458636b3636454e5752454c644d7331706d4c38443962462f";
 
     address deployed;
 
-    /**
-     * @dev Yul-emitted events still have names like in Solidity,
-     * but those names are encoded as keccak256 hashes in topic0.
-     * High-level Solidity syntax hides this detail automatically,
-     * while raw Yul `log` calls expose it directly.
-     *
-     * Mint emits an event with signature:
-     *  0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
-     *      = Transfer(address, address, uint256)
-     */
-    event Transfer(address indexed from, address indexed to, uint256 tokenId);
+    // storage memory layout
+    uint256 slotTotalSupply = 0x00;
+
+    // selectors
+    bytes4 selectorMint = bytes4(keccak256("mint(address)"));
+    bytes4 selectorTotalSupply = bytes4(keccak256("totalSupply()"));
+    bytes4 selectorTokenURI = bytes4(keccak256("tokenURI(uint256)"));
 
     // -----------------------
     // SETUP
@@ -89,6 +82,23 @@ contract Mini721Test is Test {
         assertEq(totalSupply, 0);
     }
 
+     function test_BaseURIStored() external {
+        bytes memory tokenIdData = abi.encode(uint256(0)); // encode tokenId = 0
+        (bool success, bytes memory returnData) = callMini(selectorTokenURI, tokenIdData);
+        
+        assertTrue(success, "tokenURI call failed");
+        
+        // The return data is the raw bytes returned by your Yul contract
+        console.log("Return data length:", returnData.length);
+        console.logBytes(returnData);
+        
+        // If you want to decode it as a string (assuming it's a URI)
+        if (returnData.length > 0) {
+            string memory uri = string(returnData);
+            console.log("URI:", uri);
+        }
+    }
+
     // -----------------------
     // MINTING
     // -----------------------
@@ -98,11 +108,10 @@ contract Mini721Test is Test {
         callMintStrict(address(this));
 
         uint256 supplyAfter = loadSlotValue(deployed, slotTotalSupply);
-        assertEq(supplyBefore + 1, supplyAfter, "Mint didn't increment total supply!");
+        assertEq(supplyAfter, supplyBefore + 1, "Mint didn't increment total supply!");
     }
 
     function test_MintEmitsTransferEvent() external {
-        // Mini721 emits a manual log4 topic[0] *should* be the signature for `Transfer(address,address,uint256)`
         bytes32 sig = keccak256("Transfer(address,address,uint256)");
 
         vm.recordLogs(); // ExpectEmit seem to have some issues with pure .yul contracts
@@ -113,11 +122,28 @@ contract Mini721Test is Test {
         assertTrue(logIndex >= 0, "Transfer event not found in logs!");
     }
 
+    function test_MintFailsWhenToAddressIsZero() external {
+        uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
+
+        address to = address(0);
+        bool ok = callMint(to);
+
+        uint256 supplyAfter = loadSlotValue(deployed, slotTotalSupply);
+
+        assertFalse(ok);
+        assertEq(supplyAfter, supplyBefore);
+    }
+
     function test_MintUserCanMint() external {
         address user = makeAddr("user");
+        uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
+
         vm.startPrank(user);
         callMintStrict(user);
         vm.stopPrank();
+
+        uint256 supplyAfter = loadSlotValue(deployed, slotTotalSupply);
+        assertEq(supplyAfter, supplyBefore + 1);
     }
 
     function test_MintUserCanMintToOthers() external {}
@@ -125,7 +151,20 @@ contract Mini721Test is Test {
     // -----------------------
     // EVENT VERIFICATION
     // -----------------------
-    function test_TransferEventTopicsAreCorrect() external {
+
+    /*
+        Yul-emitted events still have names like in Solidity,
+        but those names are encoded as keccak256 hashes in topic0.
+        High-level Solidity syntax hides this detail automatically,
+        while raw Yul `log` calls expose it directly.
+    */
+
+    /** 
+     * @dev Mint emits an event with signature:
+     *  0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
+     *      = Transfer(address, address, uint256)
+     */
+    function test_EventMintTransferTopicsAreCorrect() external {
         address from = address(0); // topic 1
         address to = address(this); // topic 2
         uint256 tokenId = loadSlotValue(deployed, slotTotalSupply); // topic 3
@@ -150,11 +189,28 @@ contract Mini721Test is Test {
         assertEq(actualTokenId, tokenId, "Topic 3 (tokenId) not set as expected in mint!");
     }
 
+    function test_MintStoresOwnerInCorrectSlot() external {
+        
+    }
+
+    // -----------------------
+    // STORAGE LAYOUT
+    // -----------------------
+
     // -----------------------
     // 🔧 PRIVATE HELPERS
     // -----------------------
 
     // --- external calls  ---
+    function callMini(bytes4 selector, bytes memory data) internal returns (bool ok, bytes memory returnData) {
+        (ok, returnData) = deployed.call(bytes.concat(selector, data));
+    }
+
+    function callMiniStrict(bytes4 selector, bytes memory data) internal returns (bytes memory returnData) {
+        bool ok;
+        (ok, returnData) = callMini(selector, data);
+        require(ok, "call failed");
+    }
 
     /// Calls Mini721 mint()
     function callMint(address to) internal returns (bool ok) {
@@ -167,7 +223,7 @@ contract Mini721Test is Test {
         require(ok, "call failed");
     }
 
-    /// Loads value at `slot` for given account 
+    /// Loads value at `slot` for given account
     function loadSlotValue(address account, uint256 slot) internal view returns (uint256) {
         bytes32 value = vm.load(account, bytes32(slot));
         return uint256(value);
@@ -184,7 +240,7 @@ contract Mini721Test is Test {
                 return int256(i);
             }
         }
-        return -1; 
+        return -1;
     }
 
     // --- byte ops ---
