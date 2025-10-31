@@ -73,7 +73,7 @@ contract Mini721Test is Test {
             runtime[i] = creation[i + pos + 1];
         }
 
-        // assertEq(keccak256(runtime), keccak256(deployed.code), "runtime doesn't match!");
+        assertEq(keccak256(runtime), keccak256(deployed.code), "runtime doesn't match!");
     }
 
     // -----------------------
@@ -157,7 +157,7 @@ contract Mini721Test is Test {
 
         uint256 supplyAfter = loadSlotValue(deployed, slotTotalSupply);
         assertEq(supplyAfter, supplyBefore + 1);
-        
+
         // ❗ TODO: test that the other user is set as owner correcty
     }
 
