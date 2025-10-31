@@ -17,5 +17,5 @@ cast send \
 ## Test the Mini with Foundry
 
 ```bash
-    solc --strict-assembly yul/Mini721.yul --bin > out/Mini721.bin
+    mkdir -p data && solc --strict-assembly yul/Mini721.yul --bin > data/Mini721.bin
 ```

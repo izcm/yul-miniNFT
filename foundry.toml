@@ -3,6 +3,9 @@ solc_version = "0.8.30"
 src = "solidity"
 out = "out"
 libs = ["lib"]
+fs_permissions = [
+    { access = 'read-write', path = './data/' }
+]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 # https://github.com/argotorg/solidity/releases/download/v<version>/solc-static-linux

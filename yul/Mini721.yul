@@ -123,7 +123,7 @@ object "Mini721" {
       }
     }
 
-    data "BASE_URI" "ipfs://QmVGpuAXvgDMdJEow6YK6BdXck66ENWRELdMs1pmL8D9bF/"
+    data "BASE_URI" "ipfs://QmRtA6Kqpd4JbLgdvWBcTP1wMDht3FgVnkZu6gZNPaVPZg/"
 
   }
 }
