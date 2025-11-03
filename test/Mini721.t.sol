@@ -5,10 +5,6 @@ import "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
 
 contract Mini721Test is Test {
-    // mini721's bytecode
-    uint256 whatTheHellWhyFailWhenRemove = // Why does my tests fail when i remove this when its not used anywhere!? 🔴🔴🔴
-        1; // i dont get it cuz in my setup i use deployed.slot!!! so the tests shouldnt be affected???
-
     address deployed;
 
     // storage memory layout
@@ -35,23 +31,26 @@ contract Mini721Test is Test {
         string memory data = vm.readFile(path);
         bytes memory creation = vm.parseBytes(data);
 
-        //bytes memory creation = bytecode;
+        address addr;
 
         assembly {
             // memory slot 0x00 => 0x31F contains bc length
             let size := mload(creation)
+
             // bc data 0x20 => bc.size
             let ptr := add(creation, 0x20)
 
             // call create & save address returned from constructor
-            let addr := create(0, ptr, size)
+            addr := create(0, ptr, size)
 
             // revert if deployment failed
             if iszero(addr) { revert(0, 0) }
 
-            // store the returned address in slot of `deployed`
-            sstore(deployed.slot, addr)
+            // sstore(deployed.slot, addr) for some reason this was very buggy ?? 🔴 => store after assembly block instead
         }
+
+        deployed = addr;
+
         console.log("--------------------------------------------------------------");
         console.log("Mini721 deployed at:  %s", deployed);
         console.log("--------------------------------------------------------------");
