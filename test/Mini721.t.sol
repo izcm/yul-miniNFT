@@ -46,10 +46,10 @@ contract Mini721Test is Test {
             // revert if deployment failed
             if iszero(addr) { revert(0, 0) }
 
-            // sstore(deployed.slot, addr) for some reason this was very buggy ?? 🔴 => store after assembly block instead
+            // sstore(deployed.slot, addr) //for some reason this was very buggy ?? 🔴 => store after assembly block instead
         }
 
-        deployed = addr;
+        deployed = addr; // comment out this and uncomment the sstore and see it fail...
 
         console.log("--------------------------------------------------------------");
         console.log("Mini721 deployed at:  %s", deployed);
@@ -72,15 +72,6 @@ contract Mini721Test is Test {
         for (uint256 i = 0; i < runtime.length; i++) {
             runtime[i] = creation[i + pos + 1];
         }
-
-        /*
-        console.log("--------------------------------------------------------------");
-        console.log("Runtime: ");
-        console.logBytes(deployed.code);
-        console.log("Creation: ");
-        console.logBytes(creation);
-        console.log("--------------------------------------------------------------");
-        */
 
         assertEq(runtime, deployed.code, "runtime doesn't match!");
         assertEq(keccak256(runtime), keccak256(deployed.code), "runtime doesn't match!");
