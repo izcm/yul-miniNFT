@@ -4,6 +4,7 @@
 
 # Variables
 include .env
+export
 
 # paths
 YUL_FILE = yul/Mini721.yul
@@ -30,6 +31,17 @@ deploy: build
 	@echo "🚀 Deploying Mini721..."
 	@forge script $(SCRIPT) --rpc-url $(RPC_URL) --private-key $(PRIVATE_KEY) --broadcast
 	@echo "✨ Deployment finished!"
+
+# ───────────────────────────────────────────────
+# MINI ACTION
+# ───────────────────────────────────────────────
+mint:
+	@echo "🎨 Mintinf NFT..."
+	@cast send ${CONTRACT_ADDR} "mint(address)" ${USER_ADDR} --private-key ${PRIVATE_KEY} --rpc-url ${RPC_URL}
+
+totalSupply:
+	@echo "🔢 Fetching Total Supply..."
+	@cast call ${CONTRACT_ADDR} "totalSupply()" --rpc-url ${RPC_URL}
 
 # ───────────────────────────────────────────────
 #  FORK ANVIL
