@@ -158,13 +158,18 @@ contract MiniNFTTest is Test {
         uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
 
         vm.startPrank(sender);
-        callMintStrict(receiver);
+        callMiniStrict(selectorMint, abi.encode(receiver));
         vm.stopPrank();
 
         uint256 supplyAfter = loadSlotValue(deployed, slotTotalSupply);
         assertEq(supplyAfter, supplyBefore + 1);
 
-        // ❗ TODO: test that the other user is set as owner correcty
+        uint256 tokenId = supplyAfter;
+        bytes memory ret = callMiniStrict(selectorOwnerOf, abi.encode(tokenId));
+        require(ret.length <= 32, "unexpected returndata size");
+
+        address actualOwner = abi.decode(ret, (address));
+        assertEq(receiver, actualOwner, "owner mismatch");
     }
 
     /**
@@ -199,8 +204,8 @@ contract MiniNFTTest is Test {
 
     // ❗ TODO: fuzz this assuring owners is stored correct for multiple nfts
     function test_Mint_StoresOwnerInCorrectSlot() external {
-        address owner = address(this);
-        callMiniStrict(selectorMint, abi.encode(owner));
+        address to = address(this);
+        callMiniStrict(selectorMint, abi.encode(to));
         
         uint256 tokenId = loadSlotValue(deployed, slotTotalSupply); 
 
@@ -208,7 +213,7 @@ contract MiniNFTTest is Test {
         require(ret.length <= 32, "unexpected returndata size");
 
         address actualOwner = abi.decode(ret, (address));
-        assertEq(owner, actualOwner, "owner mismatch");
+        assertEq(actualOwner, to, "actualOwner mismatch");
     }
 
     // -----------------------

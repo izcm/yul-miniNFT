@@ -18,9 +18,9 @@
   0x10 - Owners Base
     TokenId N is stored at (0x10 + N)
     Not real mapping layout - a simplified, linear style mapping 
-    Used on purpose to demonstrate how it differs from a real-life mapping like balances
+    Demonstrates contrast vs real mapping (see balances below)
 
-0x100 - Balances Base
+  0x100 - Balances Base
     → stored using the *real* EVM mapping pattern:
     balanceOf[addr] is located at:
     keccak256( addr , balanacesBaseSlot )
