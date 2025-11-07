@@ -9,12 +9,16 @@ contract MiniNFTTest is Test {
 
     // storage memory layout
     uint256 slotTotalSupply = 0x00;
+    uint256 slotBaseOwners = 0x10;
 
-    // selectors
+    // write actions
     bytes4 selectorMint = bytes4(keccak256("mint(address)"));
+
+    // read actions
+    bytes4 selectorSVG = bytes4(keccak256("svg(uint256)"));
+    bytes4 selectorOwnerof = bytes4(keccak256("ownerOf(uint256))"));
+    bytes4 selectorBalanceof = bytes4(keccak256("balanceOf(address)"));
     bytes4 selectorTotalSupply = bytes4(keccak256("totalSupply()"));
-    bytes4 selectorTokenURI = bytes4(keccak256("tokenURI(uint256)"));
-    bytes4 selectorSVG = bytes4(keccak256("svg()"));
 
     // -----------------------
     // SETUP
@@ -49,8 +53,7 @@ contract MiniNFTTest is Test {
             // sstore(deployed.slot, addr) //for some reason this was very buggy ?? 🔴 => store after assembly block instead
         }
 
-        deployed = addr; // comment out this and uncomment the sstore and see it fail...
-
+        deployed = addr;
         console.log("--------------------------------------------------------------");
         console.log("Mini721 deployed at:  %s", deployed);
         console.log("--------------------------------------------------------------");
@@ -85,8 +88,9 @@ contract MiniNFTTest is Test {
         assertEq(totalSupply, 0);
     }
 
+    /*
     function test_BaseURIStored() external {
-        bytes memory tokenIdData = abi.encode(uint256(0)); // encode tokenId = 0
+        bytes memory tokenIdData = abi.encode(uint256(1));
         bytes memory returnData = callMiniStrict(selectorTokenURI, tokenIdData);
 
         // The return data is the raw bytes returned by your Yul contract
@@ -99,6 +103,7 @@ contract MiniNFTTest is Test {
             console.log("URI:", uri);
         }
     }
+    */
 
     // -----------------------
     // MINTING
@@ -123,7 +128,7 @@ contract MiniNFTTest is Test {
         assertTrue(logIndex >= 0, "Transfer event not found in logs!");
     }
 
-    function test_MintFailsWhenToAddressIsZero() external {
+    function test_MintRevertsWhenToAddressIsZero() external {
         uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
 
         address to = address(0);
@@ -181,7 +186,7 @@ contract MiniNFTTest is Test {
     function test_EventTransferTopicsAreCorrect() external {
         address from = address(0); // topic 1
         address to = address(this); // topic 2
-        uint256 tokenId = loadSlotValue(deployed, slotTotalSupply); // topic 3
+        uint256 tokenId = loadSlotValue(deployed, slotTotalSupply) + 1; // topic 3
 
         vm.recordLogs();
         callMintStrict(to);
@@ -199,17 +204,18 @@ contract MiniNFTTest is Test {
         uint256 actualTokenId = topicToUint256(logEntry.topics[3]);
 
         assertEq(actualFrom, from, "Topic 1 (from) not set to address(0) in mint!");
-        //assertEq(actualTo, to, "Topic 2 (to) not set as expected in mint!");
+        assertEq(actualTo, to, "Topic 2 (to) not set as expected in mint!");
         assertEq(actualTokenId, tokenId, "Topic 3 (tokenId) not set as expected in mint!");
     }
 
     // -----------------------
     // STORAGE LAYOUT
     // -----------------------
+    // ❗ TODO: this should also be a fuzz test
     function test_MintStoresOwnerInCorrectSlot() external {}
 
     function test_DebugSVGRaw() external {
-        bytes memory ret = callMiniStrict(selectorSVG, "");
+        bytes memory ret = callMiniStrict(selectorSVG, abi.encode(1));
 
         console.log("Raw length:", ret.length);
         console.logBytes(ret); // print only first 2 ABI words
