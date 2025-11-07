@@ -212,7 +212,14 @@ contract MiniNFTTest is Test {
     // STORAGE LAYOUT
     // -----------------------
     // ❗ TODO: this should also be a fuzz test
-    function test_MintStoresOwnerInCorrectSlot() external {}
+    function test_MintStoresOwnerInCorrectSlot() external {
+        address to = address(this);
+        uint256 tokenId = (loadSlotValue(deployed, slotTotalSupply)) + 1; // skips tokenId 0
+        
+        callMini(selectorMint, abi.encode(tokenId));
+
+
+    }
 
     function test_DebugSVGRaw() external {
         bytes memory ret = callMiniStrict(selectorSVG, abi.encode(1));

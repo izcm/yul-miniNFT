@@ -1,31 +1,44 @@
 /*
-  ❕ Note: this implementation **DOES NOT** follow the ERC-721 standard, hence no EIP-165 "supportsInterface(iId)".
+  📝 Note: this contract intentionally  **does not** follow the ERC-721 standard".
 
-  This is a demo for learning purposes, 
+  This is an educational demo. 📚
 
-  - Free-mint NFT.
-  - No max supply. 
-  - Cannot be sold through marketplace, only minted and transferred.
+  - Free-mint NFT
+  - No max supply 
+  - Not ERC-721 compliant (no EIP-165, no safeTransfer, raw SVG, etc.)
+  - Cannot be sold through marketplace, only minted and transferred
+  - Focus is on exploring different storage layouts, not production rules
 
-  Storage layout:
-    0x00 - TotalSupply
+  ---
 
-    -- some offset for future vars --
-    0x10 - base slot holders
+  🔍 Storage layout:
+    
+  0x00 - TotalSupply
+  
+  0x10 - Holders Base
+    TokenId N is stored at (0x10 + N)
+    Not real mapping layout - a simplified, linear style mapping 
+    Used on purpose to demonstrate how it differs from a real-life mapping like balances
 
-  No keccak hashing of slots in mapping
-  Instead: increment from offset + overwrite past ownership
-  Reason: slight gas improvement 
+0x100 - Balances Base
+    → stored using the *real* EVM mapping pattern:
+    balanceOf[addr] is located at:
+    keccak256( addr , balanacesBaseSlot )
+   
+  🧠 *Balances* is how Solidity stores mappings internally.
 
-  Revert error strings and baseURI are baked into the bytecode
+  ---
+
+  On-chain SVG with dynamic color mode is baked into the bytecode. 
+
 */
+
 // ❗ TODO: So much unused stuff in TotalSupply
 // => Pack flags and supply into slot 0x00 
 // [  1 bit mintPaused | 200 bits empty | 32bits TotalSupply ]
 
 // ❗ TODO: some cool revert function that returns some hardcoded "failed because ABC" ?
 // ❗ Fuzz test the sequential owners mapping and keccak(address, uint256) balanceof never ever ever colliding
-// COLORS: ICE / COPPER / EMERALD 
 
 // ❗ TODO: i want color for nft so ill do a mode bitpacked with the 256-bit storage slot
 //  [  2 bit color   |      94 bits empty     |   160 bits address   ] 
@@ -62,13 +75,12 @@ object "MiniNFT" {
       case 0x70a08231 /* balanceOf(address) */ {
         balanceOf(calldataDecodeAsAddress(0))
       } 
-      case 0x44b285db {
+      case 0x44b285db /* svg(uint256) */ {
         svg(calldataDecodeAsUint(0))
       }
       case 0x18160ddd /* totalSupply() */ {
         totalSupply()
       }
-
       // case 0xc87b56dd /* tokenURI(id) */ {
       //  tokenURI()  // ❗ Not in use, maybe later if someone implements a yul base64Encoder (...)
       //}
