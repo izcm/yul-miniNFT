@@ -1,7 +1,7 @@
 /*
-  📝 Note: this contract intentionally  **does not** follow the ERC-721 standard".
+  📝 Note: this contract intentionally **does not** follow the ERC-721 standard".
 
-  This is an educational demo. 📚
+  This is an educational demo 📚 
 
   - Free-mint NFT
   - No max supply 
@@ -29,7 +29,7 @@
 
   ---
 
-  On-chain SVG with dynamic color mode is baked into the bytecode. 
+  🎨 On-chain SVG with dynamic color mode is baked into the bytecode. 
 
 */
 
@@ -70,7 +70,7 @@ object "MiniNFT" {
         mint(calldataDecodeAsAddress(0))
       }
       case 0x6352211e /* ownerOf(uint256) */ {
-
+        ownerOf(calldataDecodeAsUint(0))
       }
       case 0x70a08231 /* balanceOf(address) */ {
         balanceOf(calldataDecodeAsAddress(0))
@@ -121,13 +121,13 @@ object "MiniNFT" {
         return(0x00, 0x20)
       }
 
-      function ownerOf(){
-        let tokenId := calldataload(4)
+      function ownerOf(tokenId){
+        if iszero(tokenId) { revert(0x00, 0x00) } 
+        
         let slot := add(holdersBaseSlot(), tokenId)
-
         let owner := sload(slot)
-        mstore(0x00, owner)
 
+        mstore(0x00, owner)
         return(0x00, 0x20)
       }
 
@@ -138,7 +138,6 @@ object "MiniNFT" {
     
       function svg(tokenId) {
         // iszero(tokenId) { revert(0x00, 0x00) } 
-        let id := tokenId // tokenId clearer name as param, but prefer id in code 
 
         // size and offset of HEAD and TAIL
         let h := dataoffset("SVG_HEAD")
@@ -185,10 +184,11 @@ object "MiniNFT" {
       }
 
       function calldataDecodeAsAddress(offset) -> addr {
-        let v := calldataDecodeAsUint(offset) // decode first as uint256
-        if iszero(iszero(shr(v,160))) { revert(0, 0) } // assumed padding not 0 => revert
+        let v := calldataDecodeAsUint(offset) // decode as uint256
         
-        addr := v // can safely cast to address
+        if shr(v,160) { revert(0, 0) } // assumed padding not 0 => revert
+        
+        addr := v // safely cast to address
       }
 
       // --- storage layout ---

@@ -16,7 +16,7 @@ contract MiniNFTTest is Test {
 
     // read actions
     bytes4 selectorSVG = bytes4(keccak256("svg(uint256)"));
-    bytes4 selectorOwnerof = bytes4(keccak256("ownerOf(uint256))"));
+    bytes4 selectorOwnerOf = bytes4(keccak256("ownerOf(uint256)"));
     bytes4 selectorBalanceof = bytes4(keccak256("balanceOf(address)"));
     bytes4 selectorTotalSupply = bytes4(keccak256("totalSupply()"));
 
@@ -83,7 +83,7 @@ contract MiniNFTTest is Test {
     // -----------------------
     // DEPLOYMENT
     // -----------------------
-    function test_TotalSupplyStartsAtZero() external view {
+    function test_Deploy_TotalSupplyStartsAtZero() external view {
         uint256 totalSupply = loadSlotValue(deployed, slotTotalSupply);
         assertEq(totalSupply, 0);
     }
@@ -108,16 +108,16 @@ contract MiniNFTTest is Test {
     // -----------------------
     // MINTING
     // -----------------------
-    function test_MintIncrementsTotalSupply() external {
+    function test_Mint_IncrementsTotalSupply() external {
         uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
 
         callMintStrict(address(this));
 
         uint256 supplyAfter = loadSlotValue(deployed, slotTotalSupply);
-        assertEq(supplyAfter, supplyBefore + 1, "Mint didn't increment total supply!");
+        assertEq(supplyAfter, supplyBefore + 1, "mint didn't increment total supply!");
     }
 
-    function test_MintEmitsTransferEvent() external {
+    function test_Mint_EmitsTransferEvent() external {
         bytes32 sig = keccak256("Transfer(address,address,uint256)");
 
         vm.recordLogs(); // ExpectEmit seem to have some issues with pure .yul contracts
@@ -125,10 +125,10 @@ contract MiniNFTTest is Test {
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
         int256 logIndex = checkEventWasEmitted(entries, deployed, sig);
-        assertTrue(logIndex >= 0, "Transfer event not found in logs!");
+        assertTrue(logIndex >= 0, "transfer event not found in logs!");
     }
 
-    function test_MintRevertsWhenToAddressIsZero() external {
+    function test_Mint_RevertsWhenToAddressIsZero() external {
         uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
 
         address to = address(0);
@@ -140,7 +140,7 @@ contract MiniNFTTest is Test {
         assertEq(supplyAfter, supplyBefore);
     }
 
-    function test_MintUserCanMint() external {
+    function test_Mint_UserCanMint() external {
         address user = makeAddr("user");
         uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
 
@@ -152,7 +152,7 @@ contract MiniNFTTest is Test {
         assertEq(supplyAfter, supplyBefore + 1);
     }
 
-    function test_MintUserCanMintToOthers() external {
+    function test_Mint_UserCanMintToOthers() external {
         address sender = makeAddr("sender");
         address receiver = makeAddr("receiver");
         uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
@@ -167,26 +167,15 @@ contract MiniNFTTest is Test {
         // ❗ TODO: test that the other user is set as owner correcty
     }
 
-    // -----------------------
-    // EVENT VERIFICATION
-    // -----------------------
-
-    /*
-        Yul-emitted events still have names like in Solidity,
-        but those names are encoded as keccak256 hashes in topic0.
-        High-level Solidity syntax hides this detail automatically,
-        while raw Yul `log` calls expose it directly.
-    */
-
     /**
      * @dev Mint emits an event with signature:
      *  0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
      *      = Transfer(address, address, uint256)
      */
-    function test_EventTransferTopicsAreCorrect() external {
+    function test_Mint_EmitsCorrectTransferEvent() external {
         address from = address(0); // topic 1
         address to = address(this); // topic 2
-        uint256 tokenId = loadSlotValue(deployed, slotTotalSupply) + 1; // topic 3
+        uint256 tokenId = (loadSlotValue(deployed, slotTotalSupply)) + 1; // skips token 0
 
         vm.recordLogs();
         callMintStrict(to);
@@ -195,7 +184,7 @@ contract MiniNFTTest is Test {
         bytes32 sig = keccak256("Transfer(address,address,uint256)");
         int256 logIndex = checkEventWasEmitted(entries, deployed, sig);
 
-        assertTrue(logIndex >= 0, "Transfer event not found in logs!");
+        assertTrue(logIndex >= 0, "transfer event not found in logs!");
 
         Vm.Log memory logEntry = entries[uint256(logIndex)];
 
@@ -203,24 +192,28 @@ contract MiniNFTTest is Test {
         address actualTo = topicToAddress(logEntry.topics[2]);
         uint256 actualTokenId = topicToUint256(logEntry.topics[3]);
 
-        assertEq(actualFrom, from, "Topic 1 (from) not set to address(0) in mint!");
-        assertEq(actualTo, to, "Topic 2 (to) not set as expected in mint!");
-        assertEq(actualTokenId, tokenId, "Topic 3 (tokenId) not set as expected in mint!");
+        assertEq(actualFrom, from, "topic 1 (from) not set to address(0) in mint!");
+        assertEq(actualTo, to, "topic 2 (to) not set as expected in mint!");
+        assertEq(actualTokenId, tokenId, "topic 3 (tokenId) not set as expected in mint!");
+    }
+
+    // ❗ TODO: fuzz this assuring owners is stored correct for multiple nfts
+    function test_Mint_StoresOwnerInCorrectSlot() external {
+        address owner = address(this);
+        callMiniStrict(selectorMint, abi.encode(owner));
+        
+        uint256 tokenId = loadSlotValue(deployed, slotTotalSupply); 
+
+        bytes memory ret = callMiniStrict(selectorOwnerOf, abi.encode(tokenId));
+        require(ret.length <= 32, "unexpected returndata size");
+
+        address actualOwner = abi.decode(ret, (address));
+        assertEq(owner, actualOwner, "owner mismatch");
     }
 
     // -----------------------
     // STORAGE LAYOUT
     // -----------------------
-    // ❗ TODO: this should also be a fuzz test
-    function test_MintStoresOwnerInCorrectSlot() external {
-        address to = address(this);
-        uint256 tokenId = (loadSlotValue(deployed, slotTotalSupply)) + 1; // skips tokenId 0
-        
-        callMini(selectorMint, abi.encode(tokenId));
-
-
-    }
-
     function test_DebugSVGRaw() external {
         bytes memory ret = callMiniStrict(selectorSVG, abi.encode(1));
 
