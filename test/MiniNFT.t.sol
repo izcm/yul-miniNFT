@@ -88,23 +88,6 @@ contract MiniNFTTest is Test {
         assertEq(totalSupply, 0);
     }
 
-    /*
-    function test_BaseURIStored() external {
-        bytes memory tokenIdData = abi.encode(uint256(1));
-        bytes memory returnData = callMiniStrict(selectorTokenURI, tokenIdData);
-
-        // The return data is the raw bytes returned by your Yul contract
-        console.log("Return data length:", returnData.length);
-        console.logBytes(returnData);
-
-        // If you want to decode it as a string (assuming it's a URI)
-        if (returnData.length > 0) {
-            string memory uri = string(returnData);
-            console.log("URI:", uri);
-        }
-    }
-    */
-
     // -----------------------
     // MINTING
     // -----------------------
@@ -132,7 +115,7 @@ contract MiniNFTTest is Test {
             (uint256)
         );
 
-        assertEq(balanceBefore + 1, balanceAfter, "mint didn't increment receiver balance!");
+        assertEq(balanceAfter, balanceBefore + 1, "mint didn't increment receiver balance!");
     }
 
     function test_Mint_EmitsTransferEvent() external {
@@ -250,7 +233,8 @@ contract MiniNFTTest is Test {
     // STORAGE LAYOUT
     // -----------------------
     function test_DebugSVGRaw() external {
-        bytes memory ret = callMiniStrict(selectorSVG, abi.encode(1));
+        bytes memory ret = callMiniStrict(selectorSVG, abi.encode(""));
+        // bytes memory ret = callMiniStrict(selectorSVG, abi.encode(1));
 
         console.log("Raw length:", ret.length);
         console.logBytes(ret); // print only first 2 ABI words

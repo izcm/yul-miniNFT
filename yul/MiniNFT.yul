@@ -70,16 +70,16 @@ object "MiniNFT" {
       // --- dispatcher ---
       switch selector() 
       case 0x6a627842 /* mint(address) */ {
-        mint(calldataDecodeAsAddress(0))
+        mint(decodeAsAddress(0))
       }
       case 0x6352211e /* ownerOf(uint256) */ {
-        ownerOf(calldataDecodeAsUint(0))
+        ownerOf(decodeAsUint(0))
       }
       case 0x70a08231 /* balanceOf(address) */ {
-        balanceOf(calldataDecodeAsAddress(0))
+        balanceOf(decodeAsAddress(0))
       } 
-      case 0x44b285db /* svg(uint256) */ {
-        svg(calldataDecodeAsUint(0))
+      case 0xbd85f55f /* svg(uint256) */ {
+        svg()
       }
       case 0x18160ddd /* totalSupply() */ {
         totalSupply()
@@ -110,8 +110,8 @@ object "MiniNFT" {
         mstore(ptr, to)
         mstore(add(ptr, 0x20), slotBalancesBase())
         
-        let b_slot := keccak256(ptr, 0x40) // write 64 bytes
-        let b := sload(b_slot)
+        let b_slot := keccak256(ptr, 0x40) // 0x40 is 64 bytes ( | ptr | + | b_slot | )
+        let b := sload(b_slot) // the computed keccak hash is the slot!
 
         // increment balance and store
         let b_new := add(b, 1)
@@ -162,7 +162,7 @@ object "MiniNFT" {
         return(0x00, 0x20)
       }
     
-      function svg(tokenId) {
+      function svg() {
         // iszero(tokenId) { revert(0x00, 0x00) } 
 
         // size and offset of HEAD and TAIL
@@ -200,7 +200,7 @@ object "MiniNFT" {
         s := shr(224, calldataload(0))  // discards all but 4 byte selector => right-shift 224 bits
       }
 
-      function calldataDecodeAsUint(offset) -> uint {
+      function decodeAsUint(offset) -> uint {
         let ptr := add(4, mul(offset, 0x20)) // ptr past 4 byte selector, offset = 1 => add 32 bytes to ptr 
         // revert if word pointed at by ptr is beyond calldatasize 
         if lt(calldatasize(), add(ptr, 0x20)) {
@@ -209,8 +209,8 @@ object "MiniNFT" {
         uint := calldataload(ptr)
       }
 
-      function calldataDecodeAsAddress(offset) -> addr {
-        let v := calldataDecodeAsUint(offset) // decode as uint256
+      function decodeAsAddress(offset) -> addr {
+        let v := decodeAsUint(offset) // decode as uint256
         
         if shr(v,160) { revert(0, 0) } // assumed padding not 0 => revert
         
