@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
 
 contract MiniNFTTest is Test {
-    address deployed;
+    address deployedMini;
 
     // storage memory layout
     uint256 slotTotalSupply = 0x00;
@@ -13,9 +13,10 @@ contract MiniNFTTest is Test {
 
     // write actions
     bytes4 selectorMint = bytes4(keccak256("mint(address)"));
+    bytes4 selectorTransfer = bytes4(keccak256("transfer(address, uint256)"));
 
     // read actions
-    bytes4 selectorSVG = bytes4(keccak256("svg(uint256)"));
+    bytes4 selectorSVG = bytes4(keccak256("svg()"));
     bytes4 selectorOwnerOf = bytes4(keccak256("ownerOf(uint256)"));
     bytes4 selectorBalanceOf = bytes4(keccak256("balanceOf(address)"));
     bytes4 selectorTotalSupply = bytes4(keccak256("totalSupply()"));
@@ -50,19 +51,19 @@ contract MiniNFTTest is Test {
             // revert if deployment failed
             if iszero(addr) { revert(0, 0) }
 
-            // sstore(deployed.slot, addr) //for some reason this was very buggy ?? 🔴 => store after assembly block instead
+            // sstore(deployedMini.slot, addr) //for some reason this was very buggy ?? 🔴 => store after assembly block instead
         }
 
-        deployed = addr;
+        deployedMini = addr;
         console.log("--------------------------------------------------------------");
-        console.log("Mini721 deployed at:  %s", deployed);
+        console.log("Mini721 deployedMini at:  %s", deployedMini);
         console.log("--------------------------------------------------------------");
 
         runtimeCodeIsDeployedCorrectly(creation);
     }
 
     /**
-     * @dev Ensures the deployed Mini721 contract actually matches
+     * @dev Ensures the deployedMini Mini721 contract actually matches
      * the runtime compiled from `Mini721.yul`.
      *
      * This doesn’t test contract logic — it catches setup or deployment
@@ -76,27 +77,27 @@ contract MiniNFTTest is Test {
             runtime[i] = creation[i + pos + 1];
         }
 
-        assertEq(runtime, deployed.code, "runtime doesn't match!");
-        assertEq(keccak256(runtime), keccak256(deployed.code), "runtime doesn't match!");
+        assertEq(runtime, deployedMini.code, "runtime doesn't match!");
+        assertEq(keccak256(runtime), keccak256(deployedMini.code), "runtime doesn't match!");
     }
 
     // -----------------------
     // DEPLOYMENT
     // -----------------------
     function test_Deploy_TotalSupplyStartsAtZero() external view {
-        uint256 totalSupply = loadSlotValue(deployed, slotTotalSupply);
+        uint256 totalSupply = loadSlotValue(deployedMini, slotTotalSupply);
         assertEq(totalSupply, 0);
     }
 
     // -----------------------
-    // MINTING
+    // MINT
     // -----------------------
     function test_Mint_IncrementsTotalSupply() external {
-        uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
+        uint256 supplyBefore = loadSlotValue(deployedMini, slotTotalSupply);
 
         callMintStrict(address(this));
 
-        uint256 supplyAfter = loadSlotValue(deployed, slotTotalSupply);
+        uint256 supplyAfter = loadSlotValue(deployedMini, slotTotalSupply);
         assertEq(supplyAfter, supplyBefore + 1, "mint didn't increment total supply!");
     }
 
@@ -125,17 +126,17 @@ contract MiniNFTTest is Test {
         callMint(address(this));
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
-        int256 logIndex = checkEventWasEmitted(entries, deployed, sig);
+        int256 logIndex = checkEventWasEmitted(entries, deployedMini, sig);
         assertTrue(logIndex >= 0, "transfer event not found in logs!");
     }
 
     function test_Mint_RevertsWhenToAddressIsZero() external {
-        uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
+        uint256 supplyBefore = loadSlotValue(deployedMini, slotTotalSupply);
 
         address to = address(0);
         bool ok = callMint(to);
 
-        uint256 supplyAfter = loadSlotValue(deployed, slotTotalSupply);
+        uint256 supplyAfter = loadSlotValue(deployedMini, slotTotalSupply);
 
         assertFalse(ok);
         assertEq(supplyAfter, supplyBefore);
@@ -143,26 +144,26 @@ contract MiniNFTTest is Test {
 
     function test_Mint_UserCanMint() external {
         address user = makeAddr("user");
-        uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
+        uint256 supplyBefore = loadSlotValue(deployedMini, slotTotalSupply);
 
         vm.startPrank(user);
         callMintStrict(user);
         vm.stopPrank();
 
-        uint256 supplyAfter = loadSlotValue(deployed, slotTotalSupply);
+        uint256 supplyAfter = loadSlotValue(deployedMini, slotTotalSupply);
         assertEq(supplyAfter, supplyBefore + 1);
     }
 
     function test_Mint_UserCanMintToOthers() external {
         address sender = makeAddr("sender");
         address receiver = makeAddr("receiver");
-        uint256 supplyBefore = loadSlotValue(deployed, slotTotalSupply);
+        uint256 supplyBefore = loadSlotValue(deployedMini, slotTotalSupply);
 
         vm.startPrank(sender);
         callMiniStrict(selectorMint, abi.encode(receiver));
         vm.stopPrank();
 
-        uint256 supplyAfter = loadSlotValue(deployed, slotTotalSupply);
+        uint256 supplyAfter = loadSlotValue(deployedMini, slotTotalSupply);
         assertEq(supplyAfter, supplyBefore + 1);
 
         uint256 tokenId = supplyAfter;
@@ -181,14 +182,14 @@ contract MiniNFTTest is Test {
     function test_Mint_EmitsCorrectTransferEvent() external {
         address from = address(0); // topic 1
         address to = address(this); // topic 2
-        uint256 tokenId = (loadSlotValue(deployed, slotTotalSupply)) + 1; // skips token 0
+        uint256 tokenId = (loadSlotValue(deployedMini, slotTotalSupply)) + 1; // skips token 0
 
         vm.recordLogs();
         callMintStrict(to);
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
         bytes32 sig = keccak256("Transfer(address,address,uint256)");
-        int256 logIndex = checkEventWasEmitted(entries, deployed, sig);
+        int256 logIndex = checkEventWasEmitted(entries, deployedMini, sig);
 
         assertTrue(logIndex >= 0, "transfer event not found in logs!");
 
@@ -208,13 +209,33 @@ contract MiniNFTTest is Test {
         address to = address(this);
         callMiniStrict(selectorMint, abi.encode(to));
 
-        uint256 tokenId = loadSlotValue(deployed, slotTotalSupply);
+        uint256 tokenId = loadSlotValue(deployedMini, slotTotalSupply);
 
         bytes memory ret = callMiniStrict(selectorOwnerOf, abi.encode(tokenId));
         require(ret.length <= 32, "unexpected returndata size");
 
         address actualOwner = abi.decode(ret, (address));
         assertEq(actualOwner, to, "owner mismatch");
+    }
+
+    // -----------------------
+    // TRANSFER
+    // -----------------------
+    function test_Transfer_WhenCallerIsNotOwner() external {
+        address owner = makeAddr("owner");
+        callMiniStrict(selectorMint, abi.encode(owner));
+        
+        uint256 tokenId = loadSlotValue(deployedMini, slotTotalSupply);
+
+        address notOwner = address(this);
+
+        vm.expectRevert(bytes("")); 
+        (bool reverts, ) = callMini(selectorTransfer, abi.encode(notOwner));
+        assertTrue(reverts); 
+
+        // paranoia check
+        address ownerPostRevert = toAddr(loadSlotValue(deployedMini, (slotOwnersBase + tokenId)));
+        assertEq(ownerPostRevert, owner);
     }
 
     // -----------------------
@@ -248,7 +269,7 @@ contract MiniNFTTest is Test {
 
     // --- external calls  ---
     function callMini(bytes4 selector, bytes memory data) internal returns (bool ok, bytes memory returnData) {
-        (ok, returnData) = deployed.call(bytes.concat(selector, data));
+        (ok, returnData) = deployedMini.call(bytes.concat(selector, data));
     }
 
     function callMiniStrict(bytes4 selector, bytes memory data) internal returns (bytes memory returnData) {
@@ -259,13 +280,24 @@ contract MiniNFTTest is Test {
 
     /// Calls Mini721 mint()
     function callMint(address to) internal returns (bool ok) {
-        (ok,) = deployed.call(bytes.concat(hex"6a627842", bytes32(uint256(uint160(to)))));
+        (ok,) = deployedMini.call(bytes.concat(hex"6a627842", bytes32(uint256(uint160(to)))));
     }
 
     /// Calls Mini721 mint() and requires success
     function callMintStrict(address to) internal {
         bool ok = callMint(to);
         require(ok, "call failed");
+    }
+
+    /** On low-level calls, `expectRevert` flips reality:
+    *  The returned `bool` no longer means "call succeeded" —
+    *  it means "the expected revert was caught successfully." 💫
+    */
+
+    function testLowLevelCallRevert(bytes4 selector, bytes memory data) public {
+        vm.expectRevert(bytes(""));
+        (bool revertsAsExpected, ) = deployedMini.call(bytes.concat(selector, data));
+        assertTrue(revertsAsExpected, "expectRevert: call did not revert");
     }
 
     /// Loads value at `slot` for given account
@@ -324,4 +356,9 @@ contract MiniNFTTest is Test {
 
         return counter;
     }
+
+    function toAddr(uint256 value) internal pure returns (address) {
+        return address(uint160(value));
+    }
+
 }
