@@ -43,9 +43,9 @@ totalSupply:
 	@cast call $(CONTRACT_ADDR) "totalSupply()" --rpc-url $(RPC_URL)
 
 svg:
-	@echo "🖼️  Fetching on-chain SVG..."
-	@cast call $(CONTRACT_ADDR) "svg()" --rpc-url $(RPC_URL) | cast --to-ascii > output.svg
-	@echo "✨ SVG written to $(OUT_SVG)"
+	@echo "🧬 Decoding on-chain SVG..."
+	@cast abi-decode "svg()(string)" $$(cast call $(CONTRACT_ADDR) "svg()" --rpc-url $(RPC_URL)) > $(OUT_DIR)/output.svg
+	@echo "✅ SVG decoded → $(OUT_DIR)/output.svg"
 
 # ───────────────────────────────────────────────
 #  FORK ANVIL

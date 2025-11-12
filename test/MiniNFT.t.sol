@@ -14,20 +14,19 @@ contract MiniNFTTest is Test {
     // write actions
     bytes4 selectorMint = bytes4(keccak256("mint(address)"));
     bytes4 selectorTransfer = bytes4(keccak256("transfer(address,uint256)"));
-    bytes4 selectorTransferTMP = 0xa9059cbb;
 
     // read actions
-    bytes4 selectorSVG = bytes4(keccak256("svg()"));
     bytes4 selectorOwnerOf = bytes4(keccak256("ownerOf(uint256)"));
     bytes4 selectorBalanceOf = bytes4(keccak256("balanceOf(address)"));
     bytes4 selectorTotalSupply = bytes4(keccak256("totalSupply()"));
+    bytes4 selectorSVG = bytes4(keccak256("svg()"));
 
     // -----------------------
     // SETUP
     // -----------------------
 
     /**
-     *  @dev Deploys the Mini721 Yul contract manually using `create`.
+     *  @dev Deploys the MiniNFT Yul contract manually using `create`.
      *
      *  We run the post-deployment verification `runtimeCodeIsDeployedCorrectly`
      *  to make sure the constructor actually returned the correct runtime segment.
@@ -57,15 +56,15 @@ contract MiniNFTTest is Test {
 
         deployedMini = addr;
         console.log("--------------------------------------------------------------");
-        console.log("Mini721 deployedMini at:  %s", deployedMini);
+        console.log("MiniNFT deployedMini at:  %s", deployedMini);
         console.log("--------------------------------------------------------------");
 
         runtimeCodeIsDeployedCorrectly(creation);
     }
 
     /**
-     * @dev Ensures the deployedMini Mini721 contract actually matches
-     * the runtime compiled from `Mini721.yul`.
+     * @dev Ensures the deployedMini MiniNFT contract actually matches
+     * the runtime compiled from `MiniNFT.yul`.
      *
      * This doesn’t test contract logic — it catches setup or deployment
      * issues (e.g. wrong byte offsets, truncated code, or bad CREATE params).
@@ -202,8 +201,8 @@ contract MiniNFTTest is Test {
     // ❗ TODO: fuzz this assuring owners is stored correct for multiple nfts
     function test_Mint_StoresOwnerInCorrectSlot() external {
         address to = address(this);
-        callMiniStrict(selectorMint, abi.encode(to));
 
+        callMiniStrict(selectorMint, abi.encode(to));
         uint256 tokenId = loadSlotValue(deployedMini, slotTotalSupply);
 
         bytes memory ret = callMiniStrict(selectorOwnerOf, abi.encode(tokenId));
@@ -338,7 +337,7 @@ contract MiniNFTTest is Test {
     }
 
     // -----------------------
-    // 🔧 PRIVATE HELPERS
+    // 🔧 INTERNAL HELPERS
     // -----------------------
 
     // --- external calls  ---
@@ -352,12 +351,12 @@ contract MiniNFTTest is Test {
         require(ok, "call failed");
     }
 
-    /// Calls Mini721 mint()
+    /// Calls MiniNFT mint()
     function callMint(address to) internal returns (bool ok) {
         (ok,) = deployedMini.call(bytes.concat(hex"6a627842", bytes32(uint256(uint160(to)))));
     }
 
-    /// Calls Mini721 mint() and requires success
+    /// Calls MiniNFT mint() and requires success
     function callMintStrict(address to) internal {
         bool ok = callMint(to);
         require(ok, "call failed");

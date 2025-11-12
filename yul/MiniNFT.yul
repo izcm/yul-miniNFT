@@ -38,9 +38,9 @@
 
   🆎 Naming Conventions
   - **camelCase** for functions - matches Solidity style, keeps ABI-facing stuff familiar.
-  - **snake_case** for low-level ops -> cleaner for EVM internals. 
+  - **snake_case** for low-level ops / variables. 
 
-  Sorry to the purists, I tried to go full snake_case, but it looked ugly to me. 😭 
+  Sorry to the purists, I tried to go full snake_case, but it looked strange to me.  
 
 */
 
@@ -80,24 +80,21 @@ object "MiniNFT" {
       case 0x6a627842 /* mint(address) */ {
         mint(decodeAsAddress(0))
       }
-      case 0x6352211e /* ownerOf(uint256) */ {
-        ownerOf(decodeAsUint(0))
-      }
-      case 0x70a08231 /* balanceOf(address) */ {
-        balanceOf(decodeAsAddress(0))
-      } 
-      case 0xbd85f55f /* svg() */ {
-        svg()
+      case 0xa9059cbb /* transfer(address,uint256) */ {
+        transfer(decodeAsAddress(0), decodeAsUint(1))
       }
       case 0x18160ddd /* totalSupply() */ {
         totalSupply()
       }
-      case 0xa9059cbb /* transfer(address,uint256) */ {
-        transfer(decodeAsAddress(0), decodeAsUint(1))
+      case 0x70a08231 /* balanceOf(address) */ {
+        balanceOf(decodeAsAddress(0))
       }
-      // case 0xc87b56dd /* tokenURI(id) */ {
-      //  tokenURI()  // ❗ Not in use, maybe later if someone implements a yul base64Encoder (...)
-      //}
+      case 0x6352211e /* ownerOf(uint256) */ {
+        ownerOf(decodeAsUint(0))
+      } 
+      case 0xbd85f55f /* svg() */ {
+        svg()
+      }
       default {
         revert(0x00, 0x00) /* no match */
       }
@@ -116,7 +113,7 @@ object "MiniNFT" {
         // write new owner to mapping
         sstore(o_slot, to)
 
-        // compute slot = keccak(key, slot) but key & slot needs to be loaded to memory first 
+        // compute slot = keccak(key, slot) but key & slot has to be loaded to memory first 
         let ptr := mload(0x40) // polite way to treat memory
         mstore(ptr, to)
         mstore(add(ptr, 0x20), slotBalancesBase())

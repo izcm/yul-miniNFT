@@ -15,9 +15,7 @@ This NFT is not ERC-721 compliant, but it is a non-fungable token. Some educatio
 ## 🖼️ Extract the on-chain SVG
 
 ```bash
-cast call <CONTRACT_ADDRESS> "svg()" \
-  --rpc-url http://127.0.0.1:8545 \
-  | cast --to-ascii > output.svg
+cast abi-decode "svg()(string)" $(cast call <CONTRACT_ADDR> "svg()" --rpc-url <RPC_URL>) > output.svg
 ```
 
 Now open `output.svg` in any browser or image viewer.
