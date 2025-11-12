@@ -13,7 +13,8 @@ contract MiniNFTTest is Test {
 
     // write actions
     bytes4 selectorMint = bytes4(keccak256("mint(address)"));
-    bytes4 selectorTransfer = bytes4(keccak256("transfer(address, uint256)"));
+    bytes4 selectorTransfer = bytes4(keccak256("transfer(address,uint256)"));
+    bytes4 selectorTransferTMP = 0xa9059cbb;
 
     // read actions
     bytes4 selectorSVG = bytes4(keccak256("svg()"));
@@ -221,7 +222,7 @@ contract MiniNFTTest is Test {
     // -----------------------
     // TRANSFER
     // -----------------------
-    function test_Transfer_WhenCallerIsNotOwner() external {
+    function test_Transfer_RevertsWhenCallerIsNotOwner() external {
         address owner = makeAddr("owner");
         callMiniStrict(selectorMint, abi.encode(owner));
         
@@ -230,12 +231,27 @@ contract MiniNFTTest is Test {
         address notOwner = address(this);
 
         vm.expectRevert(bytes("")); 
-        (bool reverts, ) = callMini(selectorTransfer, abi.encode(notOwner));
-        assertTrue(reverts); 
+        (bool reverts, ) = callMini(selectorTransfer, abi.encode(notOwner, tokenId));
+        assertTrue(reverts, "ExpectRevert: call did not revert"); 
 
         // paranoia check
-        address ownerPostRevert = toAddr(loadSlotValue(deployedMini, (slotOwnersBase + tokenId)));
-        assertEq(ownerPostRevert, owner);
+        address ownerAfterRevert = toAddr(loadSlotValue(deployedMini, (slotOwnersBase + tokenId)));
+        assertEq(ownerAfterRevert, owner);
+    }
+
+    function test_Transfer_UpdatesOwnership() external {
+        address from = address(this);
+        
+        callMiniStrict(selectorMint, abi.encode(from));
+        uint256 tokenId = loadSlotValue(deployedMini, slotTotalSupply);
+
+        address to = makeAddr("to");
+
+        bytes memory cd = abi.encode(to, tokenId);
+        callMiniStrict(selectorTransfer, cd);
+
+        address ownerAfterTransfer = toAddr(loadSlotValue(deployedMini, (slotOwnersBase + tokenId))); 
+        assertEq(ownerAfterTransfer, to);
     }
 
     // -----------------------
@@ -294,7 +310,7 @@ contract MiniNFTTest is Test {
     *  it means "the expected revert was caught successfully." 💫
     */
 
-    function testLowLevelCallRevert(bytes4 selector, bytes memory data) public {
+    function lowLevelCallRevert(bytes4 selector, bytes memory data) public {
         vm.expectRevert(bytes(""));
         (bool revertsAsExpected, ) = deployedMini.call(bytes.concat(selector, data));
         assertTrue(revertsAsExpected, "expectRevert: call did not revert");
@@ -329,6 +345,10 @@ contract MiniNFTTest is Test {
         return uint256(topic);
     }
 
+    function toAddr(uint256 value) internal pure returns (address) {
+        return address(uint160(value));
+    }
+
     function bytePosition(bytes memory bc, bytes1 marker) internal pure returns (uint256) {
         uint256 offset;
         uint256 len = bc.length;
@@ -355,10 +375,6 @@ contract MiniNFTTest is Test {
         }
 
         return counter;
-    }
-
-    function toAddr(uint256 value) internal pure returns (address) {
-        return address(uint160(value));
     }
 
 }

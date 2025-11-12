@@ -92,7 +92,7 @@ object "MiniNFT" {
       case 0x18160ddd /* totalSupply() */ {
         totalSupply()
       }
-      case 0xa9059cbb /* transfer(address, uint256) */ {
+      case 0xa9059cbb /* transfer(address,uint256) */ {
         transfer(decodeAsAddress(0), decodeAsUint(1))
       }
       // case 0xc87b56dd /* tokenURI(id) */ {
@@ -139,7 +139,7 @@ object "MiniNFT" {
           to,   // topic 2: mintedTo
           tokenId   // topic 3: tokenId
         )
-      }
+      } 
 
       // MiniNFT does not support marketplace functionality, so we don't need to pass `from`
       function transfer(to, tokenId) {
@@ -152,12 +152,12 @@ object "MiniNFT" {
         // set new owner
         sstore(o_slot, to)
 
-        // increase / decrease balances of `from` & `to`
-        // balanceOf is the real deal EVM mapping style keccak256(key, base)
+        // update balances 
+        // balances is the real deal EVM mapping style keccak256(key, base)
         // but we cannot pass key and base directly, we need to load them to memory
         // and then pass that memory segment to keccak256
 
-        /* INCREASE `to` */
+        //  INCREASE `to` 
         // 1. load addr `to` to memory
         // 2. load balancesBase slot to memory
         // 3. hash this memory segment with keccak256
@@ -174,7 +174,7 @@ object "MiniNFT" {
         let b_to_after := add(b_to_before, 1)
         sstore(b_slot_to, b_to_after)
 
-        /* DECREASE `from` */
+        // DECREASE `from` 
         // since we already stored balancesBase to memory, lets save some gas
         // and instead of loading it again, we'll overwrite whats `to` addr (at ptr)
         mstore(ptr, from)
@@ -269,6 +269,7 @@ object "MiniNFT" {
       function decodeAsUint(offset) -> uint {
         let ptr := add(4, mul(offset, 0x20)) // ptr past 4 byte selector, ex: offset = 1 => move ptr 32 bytes  
         // revert if word pointed at by ptr is beyond calldatasize 
+        
         if lt(calldatasize(), add(ptr, 0x20)) {
           revert (0x00, 0x00)
         }
@@ -277,8 +278,8 @@ object "MiniNFT" {
 
       function decodeAsAddress(offset) -> addr {
         let v := decodeAsUint(offset) // decode as uint256
-        
-        if shr(v,160) { revert(0x00, 0x00) } // assumed padding not 0 => revert
+
+        if shr(160, v) { revert(0x00, 0x00) } // assumed padding not 0 => revert
         
         addr := v // safely cast to address
       }
