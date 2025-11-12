@@ -282,6 +282,23 @@ contract MiniNFTTest is Test {
         assertEq(toAfter, toBefore + 1, "to balance didn't increment");
     }
 
+    function test_Transfer_EmitsTransferEvent() external {
+        address from = address(this);
+        address to = makeAddr("to");
+
+        callMiniStrict(selectorMint, abi.encode(from));
+        uint256 tokenId = loadSlotValue(deployedMini, slotTotalSupply);
+
+        bytes32 sig = keccak256("Transfer(address,address,uint256)");
+
+        vm.recordLogs(); // ExpectEmit seem to have some issues with pure .yul contracts
+        callMiniStrict(selectorTransfer, abi.encode(to, tokenId));
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+
+        int256 logIndex = checkEventWasEmitted(entries, deployedMini, sig);
+        assertTrue(logIndex >= 0, "transfer event not found in logs!");
+    }
+
     // -----------------------
     // Storage Slot Matches Function Returns
     // -----------------------
