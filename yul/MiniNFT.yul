@@ -113,9 +113,6 @@ object "MiniNFT" {
       case 0x44b285db /* svg(token_id) */ {
         svg(decodeAsUint(0))
       }
-      case 0xbd85f55f /* svg() */ {
-        svg_O()
-      }
       default {
         revert(0x00, 0x00) /* no match */
       }
@@ -284,39 +281,6 @@ object "MiniNFT" {
         mstore(0x00, b)
         return(0x00, 0x20)
       }
-    
-      function svg_O() {
-        // iszero(token_id) { revert(0x00, 0x00) } 
-
-        // size and offset of HEAD and TAIL
-        let h := dataoffset("SVG_HEAD")
-        let hs := datasize("SVG_HEAD")
-        let t := dataoffset("SVG_TAIL")
-        let ts := datasize("SVG_TAIL")
-
-        // SVG_HEAD  +  color  +  SVG_TAIL 
-        let size := add(add(0x40, hs), add(1, ts))
-
-        let ptr := mload(0x40) // good practice when we use memory before return 
-        mstore(0x40, add(ptr, size)) // reserving our slots 
-
-        // Allocate ABI wrapper
-        mstore(ptr, 0x20) // offset
-        mstore(add(ptr, 0x20), add(add(hs, 1), ts))
-
-        let data_ptr := add(ptr, 0x40)
-
-        // COPY HEAD
-        datacopy(data_ptr, h, hs)
-
-        // store byte (color)
-        mstore8(add(data_ptr, hs), 0x41)
-
-        // COPY TAIL
-        datacopy(add(add(data_ptr, hs), 1), t, ts)
-
-        return(ptr, size)
-      }  
 
       function svg(token_id) {
         if iszero(token_id) { revert(0x00, 0x00) } 
