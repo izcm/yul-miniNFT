@@ -19,7 +19,7 @@ contract MiniNFTTest is Test {
     bytes4 selectorOwnerOf = bytes4(keccak256("ownerOf(uint256)"));
     bytes4 selectorBalanceOf = bytes4(keccak256("balanceOf(address)"));
     bytes4 selectorTotalSupply = bytes4(keccak256("totalSupply()"));
-    bytes4 selectorSVG = bytes4(keccak256("svg()"));
+    bytes4 selectorSVG = bytes4(keccak256("svg(uint256)"));
 
     // -----------------------
     // SETUP
@@ -164,6 +164,7 @@ contract MiniNFTTest is Test {
         bytes memory ret = callMiniStrict(selectorOwnerOf, abi.encode(tokenId));
         require(ret.length <= 32, "unexpected returndata size");
 
+        console.logBytes(ret);
         address actualOwner = abi.decode(ret, (address));
         assertEq(receiver, actualOwner, "owner mismatch");
     }
@@ -327,8 +328,10 @@ contract MiniNFTTest is Test {
     // STORAGE LAYOUT
     // -----------------------
     function test_DebugSVGRaw() external {
-        bytes memory ret = callMiniStrict(selectorSVG, abi.encode());
-        // bytes memory ret = callMiniStrict(selectorSVG, abi.encode(1));
+        callMiniStrict(selectorMint, abi.encode(address(this)));
+        uint256 tokenId = loadSlotValue(deployedMini, slotTotalSupply);
+
+        bytes memory ret = callMiniStrict(selectorSVG, abi.encode(tokenId));
 
         console.log("Raw length:", ret.length);
         console.logBytes(ret); // print only first 2 ABI words

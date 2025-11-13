@@ -17,16 +17,11 @@
   0x00 - TotalSupply
     32 bits reserved for flags => max cap is 2^224
     Lets bitpack totalSupply with something fun:
+      - First bit of totalSupply will be flag for pause / resume
       - Next 8 bits will be the suffix of whatever address initialized MiniNFT
-      - Any address that shares the same 8 LSB as initializer, has authority 😈 to set flags: 
-      
-      1. 2 bits (bits 247–246) encode the `emotionalState` flag:
-          00 → sad 😢
-          01 → angry 😡
-          10 → happy 😄
-          11 → cosmic 🔮
-      
-      [ 8-bit cosmicSiblingSuffix | 2-bit emotionalState |  ...data... ]
+        Any address that shares the same 8 LSB as initializor, has authority 😈
+        These *cosmic siblings* can do pause / resume mint + any future "onlyOwner" stuff
+        [ 1 bit pausedFlag | 8 bits suffixAuthority | Rest ]
   
   0x09 - Balances Base
     Stored using the *real* EVM mapping pattern:
@@ -63,7 +58,7 @@
 // ❗ Fuzz test the sequential owners mapping and keccak(address, uint256) balanceof never ever ever colliding
 
 // ❗ TODO: i want color for nft so ill bitpack owners:
-//  [ 1 byte color  |  94 bit padding  |  160 bit address ] 
+//  [ 2 bit color  |  94 bit padding  |  160 bit address ] 
 
 object "MiniNFT" {
 
@@ -103,11 +98,8 @@ object "MiniNFT" {
       case 0x6352211e /* ownerOf(uint256) */ {
         ownerOf(decodeAsUint(0))
       } 
-      case 0x44b285db /* svg(tokenId) */ {
-        svg(decodeAsUint(0))
-      }
       case 0xbd85f55f /* svg() */ {
-        svg_O()
+        svg()
       }
       default {
         revert(0x00, 0x00) /* no match */
@@ -117,12 +109,9 @@ object "MiniNFT" {
       function mint(to) {
         if iszero(to) { revert(0x00, 0x00) } // no address found
 
-        // color to-be packed with owner
-        let color := 0x41
-        let color_ls := shl(248, color) // left shift => fills lower 248 bits with zeros
-
-        // pack `to` and color
-        let packed := or(color_ls, to)
+        // color to-be bitpacked
+        let color := 1
+        let color_ls := shl(254, color) // left shift => fills lower 254 bits with zeros
 
         // load current supply
         let supply := sload(slotTotalSupply())
@@ -132,7 +121,7 @@ object "MiniNFT" {
         let o_slot := add(slotOwnersBase(), tokenId)
 
         // write new owner to mapping
-        sstore(o_slot, packed)
+        sstore(o_slot, to)
 
         // compute slot = keccak(key, slot) but key & slot has to be loaded to memory first 
         let ptr := mload(0x40) // polite way to treat memory
@@ -167,9 +156,7 @@ object "MiniNFT" {
 
         // load current owner from memory and require owner =  tx.caller
         let o_slot := add(slotOwnersBase(), tokenId)
-        let f_packed := sload(o_slot) // from packed
-
-        let from := unpackOwnership(f_packed) // unpack owner
+        let from := sload(o_slot)
 
         if iszero(eq(from, caller())) { revert(0x00, 0x00) }
 
@@ -222,7 +209,6 @@ object "MiniNFT" {
 
       function totalSupply() {
         let ts := sload(slotTotalSupply())
-
         mstore(0x00, ts)
         return(0x00, 0x20)
       }
@@ -231,16 +217,14 @@ object "MiniNFT" {
         if iszero(tokenId) { revert(0x00, 0x00) } 
         
         let slot := add(slotOwnersBase(), tokenId)
-        let packed := sload(slot)
-        
-        let owner := unpackOwnership(packed)
+        let owner := sload(slot)
 
         mstore(0x00, owner)
         return(0x00, 0x20)
       }
 
       function balanceOf(addr) {
-        // dont wanna use the reserved slots since we do a lot of memory ops here
+        // polite way of writing to memory 
         let ptr := mload(0x40)
 
         // compute slot = keccak(key, slot) but key & slot needs to be loaded to memory first 
@@ -255,7 +239,7 @@ object "MiniNFT" {
         return(0x00, 0x20)
       }
     
-      function svg_O() {
+      function svg() {
         // iszero(tokenId) { revert(0x00, 0x00) } 
 
         // size and offset of HEAD and TAIL
@@ -264,10 +248,10 @@ object "MiniNFT" {
         let t := dataoffset("SVG_TAIL")
         let ts := datasize("SVG_TAIL")
 
-        // SVG_HEAD  +  color  +  SVG_TAIL 
+        // SVG_HEAD  +  color  +  SVG_TAIL
         let size := add(add(0x40, hs), add(1, ts))
 
-        let ptr := mload(0x40) // good practice when we use memory before return 
+        let ptr := mload(0x40) // (we don't have to follow thsi practice since we know the memory layout, but its good practice)
         mstore(0x40, add(ptr, size)) // reserving our slots 
 
         // Allocate ABI wrapper
@@ -287,72 +271,6 @@ object "MiniNFT" {
 
         return(ptr, size)
       }
-
-      function svg(tokenId) {
-        if iszero(tokenId) { revert(0x00, 0x00) } 
-
-        // color is packed with owner, so we have to load owner & unpack
-        let o_slot := add(slotOwnersBase(), tokenId)
-        let packed := sload(o_slot)
-
-        let color := unpackColor(packed) 
-
-        // size and offset of HEAD and TAIL
-        let h := dataoffset("SVG_HEAD")
-        let hs := datasize("SVG_HEAD")
-        let t := dataoffset("SVG_TAIL")
-        let ts := datasize("SVG_TAIL")
-
-        // SVG_HEAD  +  color  +  SVG_TAIL 
-        let size := add(add(0x40, hs), add(1, ts))
-
-        let ptr := mload(0x40) // good practice when we use memory before return 
-        mstore(0x40, add(ptr, size)) // reserving our slots 
-
-        // Allocate ABI wrapper
-        mstore(ptr, 0x20) // offset
-        mstore(add(ptr, 0x20), add(add(hs, 1), ts))
-
-        let data_ptr := add(ptr, 0x40)
-
-        // COPY HEAD
-        datacopy(data_ptr, h, hs)
-
-        // store byte (color)
-        mstore8(add(data_ptr, hs), color)
-
-        // COPY TAIL
-        datacopy(add(add(data_ptr, hs), 1), t, ts)
-
-        return(ptr, size)
-      }
-
-      // creator + cosmic sibling flag
-      /*
-      function howAreYou() {
-        let m := mood()
-
-        // 00 → sad
-        // 01 → angry
-        // 10 → happy
-        // 11 → unhinged
-
-        switch m
-        case 0 {
-            returnString("im sad")
-        }
-        case 1 {
-            returnString("im angry")
-        }
-        case 2 {
-            returnString("im happy")
-        }
-        default {
-            returnString("im unhinged")
-        }
-      }
-      */
-      
 
       // --- calldata ops ---
       function selector() -> s {
@@ -376,18 +294,6 @@ object "MiniNFT" {
         addr := v // safely cast to address
       }
 
-      // --- unpacking ---
-      // Apply 20-byte mask to unpack owner
-      function unpackOwnership(packed) -> owner {
-        let mask := 0xffffffffffffffffffffffffffffffffffffffff
-        owner := and(packed, mask)
-      }
-
-      // shift right by 248 => returns 2 MSBytes
-      function unpackColor(packed) -> color {
-        color := shr(248, packed)
-      }
-
       // --- storage layout ---
       function slotTotalSupply() -> slot {
         slot := 0x00
@@ -399,6 +305,12 @@ object "MiniNFT" {
 
       function slotBalancesBase() -> slot {
         slot := 0x09
+      }
+
+      // Unpack owner address
+      // [ 2 bit color ][ 94 bit padding ][ 160 bit address ]
+      function unpackOwnership(packed) -> owner {
+
       }
 
       // --- utility ---
