@@ -14,6 +14,7 @@ contract MiniNFTTest is Test {
     // write actions
     bytes4 selectorMint = bytes4(keccak256("mint(address)"));
     bytes4 selectorTransfer = bytes4(keccak256("transfer(address,uint256)"));
+    bytes4 selectorSetColor = bytes4(keccak256("setColor(uint256,uint256)"));
 
     // read actions
     bytes4 selectorOwnerOf = bytes4(keccak256("ownerOf(uint256)"));
@@ -21,6 +22,8 @@ contract MiniNFTTest is Test {
     bytes4 selectorTotalSupply = bytes4(keccak256("totalSupply()"));
     bytes4 selectorSVG = bytes4(keccak256("svg(uint256)"));
     bytes4 selectorColorOf = bytes4(keccak256("colorOf(uint256)"));
+
+
     // -----------------------
     // SETUP
     // -----------------------
@@ -305,17 +308,24 @@ contract MiniNFTTest is Test {
         callMiniReverts(selectorTransfer, cd);
     }
 
-
     // -----------------------
-    // Storage Slot
+    // SET COLOR
     // -----------------------
-    function test_TotalSupply_ReturnsCorrectValue() external {
-        callMiniStrict(selectorMint, abi.encode(address(this)));
-
-        uint256 supply = getTotalSupply();
-        uint256 raw = loadSlotValue(deployedMini, slotTotalSupply);
+    function test_SetColor_SetsCorrectColor() external {
+        address owner = address(this);
+        callMiniStrict(selectorMint, abi.encode(owner));
+        uint256 tokenId = getTotalSupply();
         
-        assertEq(supply, raw, "totalSupply() does not match storage slot!");
+        uint256 newColor = packRGB(255, 128, 64); // Orange color
+        setColorOf(tokenId, newColor);
+        
+        uint256 actualColor = getColorOf(tokenId);
+        assertEq(actualColor, newColor, "Color was not set correctly");
+        
+        (uint8 r, uint8 g, uint8 b) = unpackRGB(actualColor);
+        assertEq(r, 255, "Red component incorrect");
+        assertEq(g, 128, "Green component incorrect");
+        assertEq(b, 64, "Blue component incorrect");
     }
 
     // -----------------------
@@ -333,8 +343,17 @@ contract MiniNFTTest is Test {
         uint256 pos = bytePosition(ret, 0);
     }
 
+    function test_TotalSupply_ReturnsCorrectValue() external {
+        callMiniStrict(selectorMint, abi.encode(address(this)));
+
+        uint256 supply = getTotalSupply();
+        uint256 raw = loadSlotValue(deployedMini, slotTotalSupply);
+        
+        assertEq(supply, raw, "totalSupply() does not match storage slot!");
+    }
+
     // -----------------------
-    // 🔧 INTERNAL HELPERS
+    // 🔧 HELPERS
     // -----------------------
 
     // --- external calls  ---
@@ -348,17 +367,67 @@ contract MiniNFTTest is Test {
         require(ok, "call failed");
     }
 
-    /// Helper: Mints to from, then immediately transfers to to (caller handles pranking)
+    /**
+     * On low-level calls, `expectRevert` flips reality:
+     *  The returned `bool` no longer means "call succeeded" —
+     *  it means "the expected revert was caught successfully." 💫
+     */
+    function callMiniReverts(bytes4 selector, bytes memory data) internal {
+        vm.expectRevert(bytes(""));
+        (bool revertsAsExpected,) = deployedMini.call(bytes.concat(selector, data));
+        assertTrue(revertsAsExpected, "expectRevert: call did not revert");
+    }
+
+    /// Loops through log entries and returns match's index if found / -1 if no match.
+    function checkEventWasEmitted(Vm.Log[] memory entries, address emitter, bytes32 eventSignature)
+        internal
+        pure
+        returns (int256)
+    {
+        for (uint256 i; i < entries.length; i++) {
+            if (entries[i].emitter == emitter && entries[i].topics[0] == eventSignature) {
+                return int256(i);
+            }
+        }
+        return -1;
+    }
+    
+    // --- WRITE MINI HELPERS ---
+
+    /// Helper: Mints to `from` then immediately transfers to `to`
     function mintAndTransfer(address from, address to) internal returns (uint256 tokenId) {
         callMiniStrict(selectorMint, abi.encode(from));
-        tokenId = loadSlotValue(deployedMini, slotTotalSupply);
+        tokenId = getTotalSupply();
         callMiniStrict(selectorTransfer, abi.encode(to, tokenId));
     }
+
+    /// Helper: Sets color of a token
+    /// Will revert if not called by owner of token with id = tokenId
+    function setColorOf(uint256 tokenId, uint256 color) internal {
+        callMiniStrict(selectorSetColor, abi.encode(tokenId, color));
+    }
+
+    // --- READ MINI HELPERS ---
 
     /// Helper: Gets color of a token
     function getColorOf(uint256 tokenId) internal returns (uint256) {
         bytes memory colorBytes = callMiniStrict(selectorColorOf, abi.encode(tokenId));
         return abi.decode(colorBytes, (uint256));
+    }
+
+    /// Helper: Packs RGB values into a single uint256
+    function packRGB(uint8 r, uint8 g, uint8 b) internal pure returns (uint256) {
+        uint256 redBits = r << 16;
+        uint256 greenBits = g << 8;
+        uint256 blueBits = b;
+        return redBits | greenBits | blueBits; 
+    }
+
+    /// Helper: Unpacks RGB values from a uint256
+    function unpackRGB(uint256 packed) internal pure returns (uint8 r, uint8 g, uint8 b) {
+        r = uint8((packed >> 16) & 0xFF);
+        g = uint8((packed >> 8) & 0xFF);
+        b = uint8(packed & 0xFF);
     }
 
     /// Helper: Gets owner of a token using high-level call
@@ -379,36 +448,10 @@ contract MiniNFTTest is Test {
         return abi.decode(supplyBytes, (uint256));
     }
 
-    /**
-     * On low-level calls, `expectRevert` flips reality:
-     *  The returned `bool` no longer means "call succeeded" —
-     *  it means "the expected revert was caught successfully." 💫
-     */
-
-    function callMiniReverts(bytes4 selector, bytes memory data) public {
-        vm.expectRevert(bytes(""));
-        (bool revertsAsExpected,) = deployedMini.call(bytes.concat(selector, data));
-        assertTrue(revertsAsExpected, "expectRevert: call did not revert");
-    }
-
     /// Loads value at `slot` for given account
     function loadSlotValue(address account, uint256 slot) internal view returns (uint256) {
         bytes32 value = vm.load(account, bytes32(slot));
         return uint256(value);
-    }
-
-    /// Loops through log entries and returns match's index if found / -1 if no match.
-    function checkEventWasEmitted(Vm.Log[] memory entries, address emitter, bytes32 eventSignature)
-        internal
-        pure
-        returns (int256)
-    {
-        for (uint256 i; i < entries.length; i++) {
-            if (entries[i].emitter == emitter && entries[i].topics[0] == eventSignature) {
-                return int256(i);
-            }
-        }
-        return -1;
     }
 
     // --- byte ops ---

@@ -104,7 +104,7 @@ object "MiniNFT" {
         mintWithColor(decodeAsAddress(0), decodeAsUint(1))
       }
       case 0x242d81cd /* setColor(uint256,uint256) */ {
-        setColor(decodeAsUint(0), decodeAsUint(0))
+        setColor(decodeAsUint(0), decodeAsUint(1))
       }
       case 0x23994729 /* colorOf(uint256) */ {
         colorOf(decodeAsUint(0))
