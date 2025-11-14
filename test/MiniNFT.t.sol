@@ -20,7 +20,7 @@ contract MiniNFTTest is Test {
     bytes4 selectorBalanceOf = bytes4(keccak256("balanceOf(address)"));
     bytes4 selectorTotalSupply = bytes4(keccak256("totalSupply()"));
     bytes4 selectorSVG = bytes4(keccak256("svg(uint256)"));
-
+    bytes4 selectorColorOf = bytes4(keccak256("colorOf(uint256)"));
     // -----------------------
     // SETUP
     // -----------------------
@@ -164,7 +164,6 @@ contract MiniNFTTest is Test {
         bytes memory ret = callMiniStrict(selectorOwnerOf, abi.encode(tokenId));
         require(ret.length <= 32, "unexpected returndata size");
 
-        console.logBytes(ret);
         address actualOwner = abi.decode(ret, (address));
         assertEq(receiver, actualOwner, "owner mismatch");
     }
@@ -214,8 +213,92 @@ contract MiniNFTTest is Test {
     }
 
     // -----------------------
+    // MINT AND TRANSFER HELPER
+    // -----------------------
+    
+    function test_MintAndTransfer_WorksCorrectly() external {
+        address from = address(this);
+        address to = makeAddr("to");
+        
+        uint256 tokenId = mintAndTransfer(from, to);
+        
+        address actualOwner = abi.decode(
+            callMiniStrict(selectorOwnerOf, abi.encode(tokenId)), 
+            (address)
+        );
+        assertEq(actualOwner, to, "token should be owned by to");
+    }
+
+    // -----------------------
     // TRANSFER
     // -----------------------
+    function test_Transfer_UpdatesOwnership() external {
+        address newOwner = makeAddr("newOwner");
+
+        uint256 tokenId = mintAndTransfer(address(this), newOwner);
+
+        address actualOwnerAfterTransfer = toAddr(loadSlotValue(deployedMini, (slotOwnersBase + tokenId)));
+        assertEq(actualOwnerAfterTransfer, newOwner);
+    }
+
+    function test_Transfer_UpdatesBalances() external {
+        address from = address(this);
+        address to = makeAddr("to");
+
+        // read balances before
+        (uint256 fromBefore, uint256 toBefore) = (
+            abi.decode(callMiniStrict(selectorBalanceOf, abi.encode(from)), (uint256)),
+            abi.decode(callMiniStrict(selectorBalanceOf, abi.encode(to)), (uint256))
+        );
+
+        // mint and transfer in one go
+        mintAndTransfer(from, to);
+
+        // read balances after
+        (uint256 fromAfter, uint256 toAfter) = (
+            abi.decode(callMiniStrict(selectorBalanceOf, abi.encode(from)), (uint256)),
+            abi.decode(callMiniStrict(selectorBalanceOf, abi.encode(to)), (uint256))
+        );
+
+        assertEq(fromAfter, fromBefore, "from balance should stay same (mint then transfer out)");
+        assertEq(toAfter, toBefore + 1, "to balance should increment by 1");
+    }
+
+    function test_Transfer_DoesNotOverwriteColor() external {
+        address from = address(this);
+
+        callMiniStrict(selectorMint, abi.encode(from));
+        uint256 tokenId = loadSlotValue(deployedMini, slotTotalSupply);
+
+        uint256 colorBefore = getColorOf(tokenId);
+
+        address to = makeAddr("to");
+        callMiniStrict(selectorTransfer, abi.encode(to, tokenId));
+
+        uint256 colorAfter = getColorOf(tokenId);
+
+        assertTrue(colorBefore != 0, "colorBefore should not be null/zero");
+        assertTrue(colorAfter != 0, "colorAfter should not be null/zero");
+        assertEq(colorBefore, colorAfter);
+    }
+
+    function test_Transfer_EmitsTransferEvent() external {
+        address to = makeAddr("to");
+        
+        // Setup: mint first
+        callMintStrict(address(this));
+        uint256 tokenId = loadSlotValue(deployedMini, slotTotalSupply);
+        
+        // Test: just the transfer event
+        bytes32 sig = keccak256("Transfer(address,address,uint256)");
+        vm.recordLogs();
+        callMiniStrict(selectorTransfer, abi.encode(to, tokenId));
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+
+        int256 logIndex = checkEventWasEmitted(entries, deployedMini, sig);
+        assertTrue(logIndex >= 0, "transfer event not found in logs!");
+    }
+
     function test_Transfer_RevertsWhenCallerIsNotOwner() external {
         address owner = makeAddr("owner");
 
@@ -241,66 +324,9 @@ contract MiniNFTTest is Test {
         callMiniReverts(selectorTransfer, cd);
     }
 
-    function test_Transfer_UpdatesOwnership() external {
-        address initialOwner = address(this);
-
-        callMiniStrict(selectorMint, abi.encode(initialOwner));
-        uint256 tokenId = loadSlotValue(deployedMini, slotTotalSupply);
-
-        address newOwner = makeAddr("newOwner");
-
-        bytes memory cd = abi.encode(newOwner, tokenId);
-        callMiniStrict(selectorTransfer, cd);
-
-        address actualOwnerAfterTransfer = toAddr(loadSlotValue(deployedMini, (slotOwnersBase + tokenId)));
-        assertEq(actualOwnerAfterTransfer, newOwner);
-    }
-
-    function test_Transfer_UpdatesBalances() external {
-        address from = address(this);
-        address to = makeAddr("to");
-
-        callMiniStrict(selectorMint, abi.encode(from));
-        uint256 tokenId = loadSlotValue(deployedMini, slotTotalSupply);
-
-        // read balances before
-        (uint256 fromBefore, uint256 toBefore) = (
-            abi.decode(callMiniStrict(selectorBalanceOf, abi.encode(from)), (uint256)),
-            abi.decode(callMiniStrict(selectorBalanceOf, abi.encode(to)), (uint256))
-        );
-
-        // execute transfer
-        callMiniStrict(selectorTransfer, abi.encode(to, tokenId));
-
-        // read balances after
-        (uint256 fromAfter, uint256 toAfter) = (
-            abi.decode(callMiniStrict(selectorBalanceOf, abi.encode(from)), (uint256)),
-            abi.decode(callMiniStrict(selectorBalanceOf, abi.encode(to)), (uint256))
-        );
-
-        assertEq(fromAfter, fromBefore - 1, "from balance didn't decrement");
-        assertEq(toAfter, toBefore + 1, "to balance didn't increment");
-    }
-
-    function test_Transfer_EmitsTransferEvent() external {
-        address from = address(this);
-        address to = makeAddr("to");
-
-        callMiniStrict(selectorMint, abi.encode(from));
-        uint256 tokenId = loadSlotValue(deployedMini, slotTotalSupply);
-
-        bytes32 sig = keccak256("Transfer(address,address,uint256)");
-
-        vm.recordLogs(); // ExpectEmit seem to have some issues with pure .yul contracts
-        callMiniStrict(selectorTransfer, abi.encode(to, tokenId));
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-
-        int256 logIndex = checkEventWasEmitted(entries, deployedMini, sig);
-        assertTrue(logIndex >= 0, "transfer event not found in logs!");
-    }
 
     // -----------------------
-    // Storage Slot Matches Function Returns
+    // Storage Slot
     // -----------------------
     function test_TotalSupply_ReturnsCorrectValue() external {
         callMiniStrict(selectorMint, abi.encode(address(this)));
@@ -363,6 +389,19 @@ contract MiniNFTTest is Test {
     function callMintStrict(address to) internal {
         bool ok = callMint(to);
         require(ok, "call failed");
+    }
+
+    /// Helper: Mints to from, then immediately transfers to to (caller handles pranking)
+    function mintAndTransfer(address from, address to) internal returns (uint256 tokenId) {
+        callMintStrict(from);
+        tokenId = loadSlotValue(deployedMini, slotTotalSupply);
+        callMiniStrict(selectorTransfer, abi.encode(to, tokenId));
+    }
+
+    /// Helper: Gets color of a token
+    function getColorOf(uint256 tokenId) internal returns (uint256) {
+        bytes memory colorBytes = callMiniStrict(selectorColorOf, abi.encode(tokenId));
+        return abi.decode(colorBytes, (uint256));
     }
 
     /**

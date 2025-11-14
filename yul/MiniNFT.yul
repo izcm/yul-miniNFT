@@ -59,6 +59,7 @@
 
 */
 
+// ❗ TODO: when the mood() functionality is there remember the maxCap
 // ❗ TODO: some cool revert function that returns some hardcoded "failed because ABC" ?
 // ❗ Fuzz test the sequential owners mapping and keccak(address, uint256) balanceof never ever ever colliding
 object "MiniNFT" {
@@ -87,13 +88,6 @@ object "MiniNFT" {
       case 0x6a627842 /* mint(address) */ {
         mint(decodeAsAddress(0))
       }
-      case 0x962e976a /* mintWithColor(address,uint8) */ {
-        let r := and(calldataload(4), 0xff)
-        let g := and(calldataload(36), 0xff)
-        let b := and(calldataload(68), 0xff)
-
-        mintWithColor(decodeAsAddress(0), r, g, b)
-      }
       case 0xa9059cbb /* transfer(address,uint256) */ {
         transfer(decodeAsAddress(0), decodeAsUint(1))
       }
@@ -106,6 +100,15 @@ object "MiniNFT" {
       case 0x6352211e /* ownerOf(uint256) */ {
         ownerOf(decodeAsUint(0))
       } 
+      case 0x4cef1007 /* mintWithColor(address,uint256) */ {
+        mintWithColor(decodeAsAddress(0), decodeAsUint(1))
+      }
+      case 0x242d81cd /* setColor(uint256,uint256) */ {
+        setColor(decodeAsUint(0), decodeAsUint(0))
+      }
+      case 0x23994729 /* colorOf(uint256) */ {
+        colorOf(decodeAsUint(0))
+      }
       case 0x44b285db /* svg(token_id) */ {
         svg(decodeAsUint(0))
       }
@@ -114,44 +117,21 @@ object "MiniNFT" {
       }
 
       // --- external interactions ---
-      function mintWithColor(to, r, g, b) {
+      function mintWithColor(to, rgb24) {
         mint(to)
         
         let token_id := sload(slotTotalSupply())
         
-        setColor(token_id, r, g, b)
-      }
-      
-
-      function setColor(token_id, r, g, b) {
-        let slot := add(slotOwnersBase(), token_id)
-        let packed := sload(slot)
-
-        let owner := unpackOwner(packed)
-        if iszero(eq(owner, caller())) { revert(0x00, 0x00) }
-
-        let rgb := concatrgb(r, g, b)
-        let rgb_ls := shl(232, rgb)
-
-        packed := or(rgb_ls, owner) // no other bitpacking in these slots per today, so this overwrite works
-        sstore(slot, packed)
-
-      }
-
-      function concatrgb(r, g, b) -> rgb {
-        let r_ls := shl(16, r) // RR0000
-        let g_ls := shl(8, g) // 00GG00
-        
-        rgb :=  or(or(r_ls, g_ls), b) // RRGGBB 
+        setColor(token_id, rgb24)
       }
 
       function mint(to) {
         if iszero(to) { revert(0x00, 0x00) } // no address found
 
         // color to-be packed with owner
-        let r := 50
+        let r := 100
         let g := 100
-        let b := 150
+        let b := 100
 
         // RR0000
         let r_ls := shl(16, r)
@@ -199,9 +179,34 @@ object "MiniNFT" {
           token_id   // topic 3: token_id
         )
       } 
+      
+      function setColor(token_id, rbg_in) {
+        let slot := add(slotOwnersBase(), token_id)
+        let packed := sload(slot)
 
-      // MiniNFT does not support marketplace functionality, so we don't need to pass `from`
-      // ❗ TODO: make the color not be whiped at transfer
+        let owner := unpackOwner(packed)
+        if iszero(eq(owner, caller())) { revert(0x00, 0x00) }
+
+        // decode as uint24
+        let rgb24 := and(rbg_in, 0xffffff)
+        let rgb24_ls := shl(232, rgb24)
+
+        packed := or(rgb24_ls, owner) // no other bitpacking in these slots per today, so this overwrite works
+        sstore(slot, packed)
+      }
+
+      function colorOf(token_id) {
+        if iszero(token_id) { revert(0, 0) }
+        
+        let slot := add(slotOwnersBase(), token_id)
+        let packed := sload(slot)
+
+        let rgb24 := unpackRGB(packed)
+        
+        mstore(0x00, rgb24)
+        return(0x00 , 0x20)
+      }
+
       function transfer(to, token_id) {
         // assert params are not 0
         if iszero(token_id) { revert(0x00, 0x00) }
@@ -351,7 +356,7 @@ object "MiniNFT" {
         return(ptr, size)
       }
 
-      // --- SVG Color Helpers ---
+      // --- SVG color helpers ---
       
       // R, G, B are 1-byte numbers (0–255), but SVG wants TEXT "#RRGGBB"
       // every 1 byte 0-255 color value becomes **two ASCII characters**
@@ -394,7 +399,7 @@ object "MiniNFT" {
             returnString("im happy")
         }
         default {
-            returnString("im unhinged")
+            returnString("im cosmic")
         }
       }
       */
@@ -421,32 +426,37 @@ object "MiniNFT" {
         addr := v // safely cast to address
       }
 
-      // --- unpacking ---
-      // ❕ NOTE: all unpacking functions expect the whole packed obj ( color ++ address ) as input
+      // --- pack / unpack ---
+      function packRGB(r, g, b) -> rgb {
+        let r_ls := shl(16, r) // RR0000
+        let g_ls := shl(8, g) // 00GG00
+        
+        rgb :=  or(or(r_ls, g_ls), b) // RRGGBB 
+      }
 
-      // Apply 20-byte mask to unpack owner
+      // ❕ NOTE: all **unpacking** functions expect the whole packed obj ( color ++ address ) as input
       function unpackOwner(packed) -> owner {
         let mask := 0xffffffffffffffffffffffffffffffffffffffff
         owner := and(packed, mask)
       }
 
       function unpackRed(packed) -> r {
-        let rgb := unpackRGB24(packed)
+        let rgb := unpackRGB(packed)
         r := shr(16, rgb)
       }
 
       function unpackGreen(packed) -> g {
-        let rgb := unpackRGB24(packed)
+        let rgb := unpackRGB(packed)
         g := and(shr(8, rgb), 0xff)
       }
 
       function unpackBlue(packed) -> b {
-        let rgb := unpackRGB24(packed)
+        let rgb := unpackRGB(packed)
         b := and(rgb, 0xff)
       }
 
-      // shift right by 232 => returns 3 MSBytes (R, G, B)
-      function unpackRGB24(packed) -> rgb {
+      // shift right by 232 => keeps only the 1*3 r,g,b bytes
+      function unpackRGB(packed) -> rgb {
         rgb := shr(232, packed)
       }
 
