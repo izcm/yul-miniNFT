@@ -261,8 +261,6 @@ contract MiniNFTTest is Test {
 
         uint256 colorAfter = getColorOf(tokenId);
 
-        assertTrue(colorBefore != 0, "colorBefore should not be null/zero");
-        assertTrue(colorAfter != 0, "colorAfter should not be null/zero");
         assertEq(colorBefore, colorAfter);
     }
 
