@@ -17,10 +17,10 @@
   0x00 - TotalSupply
     32 bits reserved for flags => max cap is 2^224
     Lets bitpack totalSupply with something fun:
-      - Next 8 bits will be the suffix of whatever address initialized MiniNFT
+      - 8 MSBits will be the suffix of whatever address initialized MiniNFT
       - Any address that shares the same 8 LSB as initializer, has authority 😈 to set flags: 
       
-      1. 2 bits (bits 247–246) encode the `emotionalState` flag:
+      1. Next 2 bits (bits 247–246) encode the `emotionalState` flag:
           00 → sad 😢
           01 → angry 😡
           10 → happy 😄
@@ -128,23 +128,6 @@ object "MiniNFT" {
       function mint(to) {
         if iszero(to) { revert(0x00, 0x00) } // no address found
 
-        // color to-be packed with owner
-        let r := 100
-        let g := 100
-        let b := 100
-
-        // RR0000
-        let r_ls := shl(16, r)
-        // 00GG00
-        let g_ls := shl(8, g)
-
-        // RRGGBB 
-        let color :=  or(or(r_ls, g_ls), b)
-        let color_ls := shl(232, color) // [ 24 color ] [ 72 empty ] [ 160 address ] => so we need to left shift color 232 bits
-
-        // pack `to` and color
-        let packed := or(color_ls, to)
-
         // load current supply
         let supply := sload(slotTotalSupply())
 
@@ -152,31 +135,33 @@ object "MiniNFT" {
         let token_id := add(supply, 1)
         let o_slot := add(slotOwnersBase(), token_id)
 
-        // write new owner to mapping
-        sstore(o_slot, packed)
+        // write new owner to mapping (color is default 0x00.. black at mint)
+        sstore(o_slot, to)
 
         // compute slot = keccak(key, slot) but key & slot has to be loaded to memory first 
         let ptr := mload(0x40) // polite way to treat memory
         mstore(ptr, to)
         mstore(add(ptr, 0x20), slotBalancesBase())
         
-        let bal_slot := keccak256(ptr, 0x40) // 0x40 is 64 bytes ( | ptr | + | b_slot | )
-        let bal := sload(bal_slot) // the computed keccak hash is the slot!
+        let b_slot := keccak256(ptr, 0x40) // 0x40 is 64 bytes ( | ptr | + | b_slot | )
+        let b := sload(b_slot) // the computed keccak hash is the slot!
 
         // increment balance and store
-        let bal_new := add(bal, 1)
-        sstore(bal_slot, bal_new)
+        let b_new := add(b, 1)
+        sstore(b_slot, b_new)
 
         // increment totalSupply
         sstore(slotTotalSupply(), token_id)
 
+        // store tokenid to memory => set as `data` in log
+        mstore(0x00, token_id)
+
         // emit Transfer(address indexed from, address indexed to, uint256 indexed token_id)
-        log4( // ❗ TODO: make generic function for emitting events
-          0x00, 0x00,   // no data payload
+        log3( // ❗ TODO: make generic function for emitting events
+          0x00, 0x20,   // no data payload
           0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef, // topic 0: signatureHash 
           0,    // topic 1: newly minted nft => from = address(0) 
-          to,   // topic 2: mintedTo
-          token_id   // topic 3: token_id
+          to   // topic 2: mintedTo
         )
       } 
       
@@ -261,15 +246,16 @@ object "MiniNFT" {
         let b_from_after := sub(b_from_before, 1)
         sstore(b_slot_from, b_from_after)
 
+        // safe to overwrite memory 0x00 - end of execution context
+        mstore(0x00, token_id)
+
         // emit transfer
-        log4( // ❗ TODO: make generic function for emitting events
-          0x00, 0x00,   // no data payload
+        log3( // ❗ TODO: make generic function for emitting events
+          0x00, 0x20,   // no data payload
           0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef, // topic 0: signatureHash 
           from,    // topic 1: from 
-          to,   // topic 2: to
-          token_id    // topic 3: token_id
+          to   // topic 2: to
         )
-
       }
 
       function totalSupply() {
