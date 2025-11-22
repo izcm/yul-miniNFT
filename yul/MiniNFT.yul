@@ -61,7 +61,8 @@
 
 // ❗ TODO: when the mood() functionality is there remember the maxCap
 // ❗ TODO: some cool revert function that returns some hardcoded "failed because ABC" ?
-// ❗ Fuzz test the sequential owners mapping and keccak(address, uint256) balanceof never ever ever colliding
+// ❗ TODO: Fuzz test the sequential owners mapping and keccak(address, uint256) balanceof never ever ever colliding
+// ❗ TODO:  emit log for setColor for use in frontend dashboard 
 object "MiniNFT" {
 
   // top `code` block is the constructor for MiniNFT
@@ -157,7 +158,7 @@ object "MiniNFT" {
         mstore(0x00, token_id)
 
         // emit Transfer(address indexed from, address indexed to, uint256 indexed token_id)
-        log3( // ❗ TODO: make generic function for emitting events
+        log3(
           0x00, 0x20,   // no data payload
           0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef, // topic 0: signatureHash 
           0,    // topic 1: newly minted nft => from = address(0) 
@@ -250,7 +251,7 @@ object "MiniNFT" {
         mstore(0x00, token_id)
 
         // emit transfer
-        log3( // ❗ TODO: make generic function for emitting events
+        log3( 
           0x00, 0x20,   // no data payload
           0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef, // topic 0: signatureHash 
           from,    // topic 1: from 
@@ -272,6 +273,7 @@ object "MiniNFT" {
         let packed := sload(slot)
         
         let owner := unpackOwner(packed)
+        if iszero(owner) { revert(0x00, 0x00) } // revert if no owner
 
         mstore(0x00, owner)
         return(0x00, 0x20)
