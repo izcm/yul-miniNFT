@@ -52,10 +52,8 @@
   ---
 
   🆎 Naming Conventions
-  - **camelCase** for functions - matches Solidity style, keeps ABI-facing stuff familiar.
-  - **snake_case** for low-level ops / variables. 
-
-  Sorry to the purists, I tried to go full snake_case, but it looked weird to me.  
+  - **camelCase** for external facing functions - matches Solidity style, keeps ABI-facing stuff familiar.
+  - **snake_case** for internal functions / low-level ops / variables. 
 
 */
 
@@ -82,36 +80,36 @@ object "MiniNFT" {
   object "runtime" {
     code {
       // prevents contract receiving eth
-      require(iszero(callvalue())) 
+      require_condition(iszero(callvalue())) 
 
       // --- dispatcher ---
       switch selector() 
       case 0x6a627842 /* mint(address) */ {
-        mint(decodeAsAddress(0))
+        mint(decode_as_address(0))
       }
       case 0xa9059cbb /* transfer(address,uint256) */ {
-        transfer(decodeAsAddress(0), decodeAsUint(1))
+        transfer(decode_as_address(0), decode_as_uint(1))
       }
       case 0x18160ddd /* totalSupply() */ {
         totalSupply()
       }
       case 0x70a08231 /* balanceOf(address) */ {
-        balanceOf(decodeAsAddress(0))
+        balanceOf(decode_as_address(0))
       }
       case 0x6352211e /* ownerOf(uint256) */ {
-        ownerOf(decodeAsUint(0))
+        ownerOf(decode_as_uint(0))
       } 
       case 0x4cef1007 /* mintWithColor(address,uint256) */ {
-        mintWithColor(decodeAsAddress(0), decodeAsUint(1))
+        mintWithColor(decode_as_address(0), decode_as_uint(1))
       }
       case 0x242d81cd /* setColor(uint256,uint256) */ {
-        setColor(decodeAsUint(0), decodeAsUint(1))
+        setColor(decode_as_uint(0), decode_as_uint(1))
       }
       case 0x23994729 /* colorOf(uint256) */ {
-        colorOf(decodeAsUint(0))
+        colorOf(decode_as_uint(0))
       }
       case 0x44b285db /* svg(token_id) */ {
-        svg(decodeAsUint(0))
+        svg(decode_as_uint(0))
       }
       default {
         revert(0x00, 0x00) /* no match */
@@ -121,7 +119,7 @@ object "MiniNFT" {
       function mintWithColor(to, rgb24) {
         mint(to)
         
-        let token_id := sload(slotTotalSupply())
+        let token_id := sload(slot_total_supply())
         
         setColor(token_id, rgb24)
       }
@@ -130,11 +128,11 @@ object "MiniNFT" {
         if iszero(to) { revert(0x00, 0x00) } // no address found
 
         // load current supply
-        let supply := sload(slotTotalSupply())
+        let supply := sload(slot_total_supply())
 
         // next token_id = supply + 1 (not allowing token_id 0)  
         let token_id := add(supply, 1)
-        let o_slot := add(slotOwnersBase(), token_id)
+        let o_slot := add(slot_owners_base(), token_id)
 
         // write new owner to mapping (color is default 0x00.. black at mint)
         sstore(o_slot, to)
@@ -142,7 +140,7 @@ object "MiniNFT" {
         // compute slot = keccak(key, slot) but key & slot has to be loaded to memory first 
         let ptr := mload(0x40) // polite way to treat memory
         mstore(ptr, to)
-        mstore(add(ptr, 0x20), slotBalancesBase())
+        mstore(add(ptr, 0x20), slot_balances_base())
         
         let b_slot := keccak256(ptr, 0x40) // 0x40 is 64 bytes ( | ptr | + | b_slot | )
         let b := sload(b_slot) // the computed keccak hash is the slot!
@@ -152,7 +150,7 @@ object "MiniNFT" {
         sstore(b_slot, b_new)
 
         // increment totalSupply
-        sstore(slotTotalSupply(), token_id)
+        sstore(slot_total_supply(), token_id)
 
         // store tokenid to memory => set as `data` in log
         mstore(0x00, token_id)
@@ -167,10 +165,10 @@ object "MiniNFT" {
       } 
       
       function setColor(token_id, rbg_in) {
-        let slot := add(slotOwnersBase(), token_id)
+        let slot := add(slot_owners_base(), token_id)
         let packed := sload(slot)
 
-        let owner := unpackOwner(packed)
+        let owner := unpack_owner(packed)
         if iszero(eq(owner, caller())) { revert(0x00, 0x00) }
 
         // decode as uint24
@@ -184,13 +182,41 @@ object "MiniNFT" {
       function colorOf(token_id) {
         if iszero(token_id) { revert(0, 0) }
         
-        let slot := add(slotOwnersBase(), token_id)
+        let slot := add(slot_owners_base(), token_id)
         let packed := sload(slot)
 
-        let rgb24 := unpackRGB(packed)
+        let rgb24 := unpack_rgb(packed)
         
         mstore(0x00, rgb24)
         return(0x00 , 0x20)
+      }
+      
+      // ❗ TODO: this revert demads proper use of free memory pointer updates
+      // check that this is true for all the calling functions
+      function revert_error(msg, size) {
+        // free mem ptr
+        let ptr := mload(0x40)
+
+        // 1. solidity style revert: store Error(string) selector
+        mstore(ptr, shl(240,  0x08c379a0))
+
+        // 2. offset to data section (32)
+        mstore(add(ptr, 0x20), 0x20)
+
+        let data_ptr := add(ptr, 0x40)
+
+        // 3. length of msg
+        mstore(data_ptr, size)
+
+        // 4. copy msg from bytecode to memory
+        datacopy(add(data_ptr, 0x20), msg, size)
+
+        // TESTING
+        let pad_ptr := add(data_ptr, add(size, 0x20))
+        mstore(pad_ptr, 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)
+
+        // revert
+        revert(ptr, add(size, 0x80))
       }
 
       function transfer(to, token_id) {
@@ -199,11 +225,11 @@ object "MiniNFT" {
         if iszero(to) { revert(0x00, 0x00) }
 
         // load current owner from memory and require owner =  tx.caller
-        let o_slot := add(slotOwnersBase(), token_id)
+        let o_slot := add(slot_owners_base(), token_id)
         let f_packed := sload(o_slot) // from packed ( color rgb is bitpacked with owner )
 
         // unpack owner and assert caller is owner
-        let from := unpackOwner(f_packed)
+        let from := unpack_owner(f_packed)
         if iszero(eq(from, caller())) { revert(0x00, 0x00) }
 
         // unpack color and pack with `to` address
@@ -226,7 +252,7 @@ object "MiniNFT" {
         let ptr := mload(0x40) // good practice
 
         mstore(ptr, to)
-        mstore(add(ptr, 0x20), slotBalancesBase())
+        mstore(add(ptr, 0x20), slot_balances_base())
 
         // get the slot and load the balances of `to` before transfer
         let b_slot_to := keccak256(ptr, 0x40)
@@ -260,7 +286,7 @@ object "MiniNFT" {
       }
 
       function totalSupply() {
-        let ts := sload(slotTotalSupply())
+        let ts := sload(slot_total_supply())
 
         mstore(0x00, ts)
         return(0x00, 0x20)
@@ -269,10 +295,10 @@ object "MiniNFT" {
       function ownerOf(token_id){
         if iszero(token_id) { revert(0x00, 0x00) } 
         
-        let slot := add(slotOwnersBase(), token_id)
+        let slot := add(slot_owners_base(), token_id)
         let packed := sload(slot)
         
-        let owner := unpackOwner(packed)
+        let owner := unpack_owner(packed)
         if iszero(owner) { revert(0x00, 0x00) } // revert if no owner
 
         mstore(0x00, owner)
@@ -285,7 +311,7 @@ object "MiniNFT" {
 
         // compute slot = keccak(key, slot) but key & slot needs to be loaded to memory first 
         mstore(ptr, addr)
-        mstore(add(ptr, 0x20), slotBalancesBase())
+        mstore(add(ptr, 0x20), slot_balances_base())
         
         let b_slot := keccak256(ptr, 0x40) // write 64 bytes
         let b := sload(b_slot)
@@ -299,13 +325,13 @@ object "MiniNFT" {
         if iszero(token_id) { revert(0x00, 0x00) } 
 
         // color is packed with owner, so we have to load owner & unpack
-        let o_slot := add(slotOwnersBase(), token_id)
+        let o_slot := add(slot_owners_base(), token_id)
         let packed := sload(o_slot)
 
         // decimal color values
-        let r := unpackRed(packed)
-        let g := unpackGreen(packed)
-        let b := unpackBlue(packed)
+        let r := unpack_red(packed)
+        let g := unpack_green(packed)
+        let b := unpack_blue(packed)
 
         // R, G, B are converted to 2 byte HEX  => combined size is 2 * 3 = 6 bytes 
         let rgb_s := 6
@@ -334,9 +360,9 @@ object "MiniNFT" {
         // write rgb to memory 
         let colorPtr := add(data_ptr, hs)
 
-        writeByteAsHex(r, colorPtr)
-        writeByteAsHex(g, add(colorPtr, 2))
-        writeByteAsHex(b, add(colorPtr, 4))
+        write_byte_as_hex(r, colorPtr)
+        write_byte_as_hex(g, add(colorPtr, 2))
+        write_byte_as_hex(b, add(colorPtr, 4))
 
         // COPY TAIL
         datacopy(add(add(data_ptr, hs), rgb_s), t, ts)
@@ -349,15 +375,15 @@ object "MiniNFT" {
       // R, G, B are 1-byte numbers (0–255), but SVG wants TEXT "#RRGGBB"
       // every 1 byte 0-255 color value becomes **two ASCII characters**
       // => mstore8 * 2
-      function writeByteAsHex(v, outPtr) {
+      function write_byte_as_hex(v, outPtr) {
           let hi := shr(4, v)        // high nibble  
           let lo := and(v, 0x0f)     // low nibble   
 
-          mstore8(outPtr,      hexDigit(hi))       
-          mstore8(add(outPtr,1), hexDigit(lo))    
+          mstore8(outPtr,      hex_digit(hi))       
+          mstore8(add(outPtr,1), hex_digit(lo))    
       }
 
-      function hexDigit(n) -> c {
+      function hex_digit(n) -> c {
         if lt(n, 10) {
             c := add(0x30, n)      // '0' + n
         }
@@ -397,7 +423,7 @@ object "MiniNFT" {
         s := shr(224, calldataload(0))  // discards all but 4 byte selector => right-shift 224 bits
       }
 
-      function decodeAsUint(offset) -> uint {
+      function decode_as_uint(offset) -> uint {
         let ptr := add(4, mul(offset, 0x20)) // ptr past 4 byte selector, ex: offset = 1 => move ptr 32 bytes  
         // revert if word pointed at by ptr is beyond calldatasize 
         if lt(calldatasize(), add(ptr, 0x20)) {
@@ -406,8 +432,8 @@ object "MiniNFT" {
         uint := calldataload(ptr)
       }
 
-      function decodeAsAddress(offset) -> addr {
-        let v := decodeAsUint(offset) // decode as uint256
+      function decode_as_address(offset) -> addr {
+        let v := decode_as_uint(offset) // decode as uint256
 
         if shr(160, v) { revert(0x00, 0x00) } // assumed padding not 0 => revert
         
@@ -415,7 +441,7 @@ object "MiniNFT" {
       }
 
       // --- pack / unpack ---
-      function packRGB(r, g, b) -> rgb {
+      function pack_rgb(r, g, b) -> rgb {
         let r_ls := shl(16, r) // RR0000
         let g_ls := shl(8, g) // 00GG00
         
@@ -423,57 +449,57 @@ object "MiniNFT" {
       }
 
       // ❕ NOTE: all **unpacking** functions expect the whole packed obj ( color ++ address ) as input
-      function unpackOwner(packed) -> owner {
+      function unpack_owner(packed) -> owner {
         let mask := 0xffffffffffffffffffffffffffffffffffffffff
         owner := and(packed, mask)
       }
 
-      function unpackRed(packed) -> r {
-        let rgb := unpackRGB(packed)
+      function unpack_red(packed) -> r {
+        let rgb := unpack_rgb(packed)
         r := shr(16, rgb)
       }
 
-      function unpackGreen(packed) -> g {
-        let rgb := unpackRGB(packed)
+      function unpack_green(packed) -> g {
+        let rgb := unpack_rgb(packed)
         g := and(shr(8, rgb), 0xff)
       }
 
-      function unpackBlue(packed) -> b {
-        let rgb := unpackRGB(packed)
+      function unpack_blue(packed) -> b {
+        let rgb := unpack_rgb(packed)
         b := and(rgb, 0xff)
       }
 
       // shift right by 232 => keeps only the 1*3 r,g,b bytes
-      function unpackRGB(packed) -> rgb {
+      function unpack_rgb(packed) -> rgb {
         rgb := shr(232, packed)
       }
 
       // --- storage layout ---
-      function slotTotalSupply() -> slot {
+      function slot_total_supply() -> slot {
         slot := 0x00
       }
 
-      function slotOwnersBase() -> slot {
+      function slot_owners_base() -> slot {
         slot := 0x10
       }
 
-      function slotBalancesBase() -> slot {
+      function slot_balances_base() -> slot {
         slot := 0x09
       }
 
       // --- utility ---
-      function require(condition) {
+      function require_condition(condition) {
         if iszero(condition) { revert(0x00, 0x00) }
       }
 
-      function safeAdd(a, b) -> r {
+      function safe_add(a, b) -> r {
         r := add(a, b)
         if or(lt(r, a), lt(r, b)) { revert(0x00, 0x00) }
       }
     }
     
     // REVERT MESSAGES
-    data "REVERT_INVALID_ADDRESS" "Invalid Address"
+    data "NOT_OWNER" "Not Owner"
 
     // ON-CHAIN SVG
     data "SVG_HEAD" "<?xml version='1.0' encoding='UTF-8'?><svg xmlns='http://www.w3.org/2000/svg' width='1600' height='1600' viewBox='0 0 1200 1200'><defs><path id='P' d='m712.5 581.25c0 10.355-8.3945 18.75-18.75 18.75s-18.75-8.3945-18.75-18.75 8.3945-18.75 18.75-18.75 18.75 8.3945 18.75 18.75z'/></defs><g fill='none' stroke='#"
