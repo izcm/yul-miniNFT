@@ -125,7 +125,7 @@ object "MiniNFT" {
       }
 
       function mint(to) {
-        if iszero(to) { revert(0x00, 0x00) } // no address found
+        if iszero(to) { revert_zero_addr() } // no address found
 
         // load current supply
         let supply := sload(slot_total_supply())
@@ -169,8 +169,7 @@ object "MiniNFT" {
         let packed := sload(slot)
 
         let owner := unpack_owner(packed)
-        if iszero(eq(owner, caller())) { revert(0x00, 0x00) }
-        if iszero(eq(owner, caller())) { revert(0x00, 0x00) }
+        if iszero(eq(owner, caller())) { revert_not_owner() }
 
         // decode as uint24
         let rgb24 := and(rbg_in, 0xffffff)
@@ -181,7 +180,7 @@ object "MiniNFT" {
       }
 
       function colorOf(token_id) {
-        if iszero(token_id) { revert(0, 0) }
+        if iszero(token_id) { revert_invalid_token() }
         
         let slot := add(slot_owners_base(), token_id)
         let packed := sload(slot)
@@ -194,8 +193,8 @@ object "MiniNFT" {
 
       function transfer(to, token_id) {
         // assert params are not 0
-        if iszero(token_id) { revert(0x00, 0x00) }
-        if iszero(to) { revert(0x00, 0x00) }
+        if iszero(token_id) { revert_invalid_token() }
+        if iszero(to) { revert_zero_addr() }
 
         // load current owner from memory and require owner =  tx.caller
         let o_slot := add(slot_owners_base(), token_id)
@@ -203,7 +202,7 @@ object "MiniNFT" {
 
         // unpack owner and assert caller is owner
         let from := unpack_owner(f_packed)
-        if iszero(eq(from, caller())) { revert(0x00, 0x00) }
+        if iszero(eq(from, caller())) { revert_not_owner() }
 
         // unpack color and pack with `to` address
         let msb24_mask := shl(232, 0xffffff)
@@ -266,7 +265,7 @@ object "MiniNFT" {
       }
 
       function ownerOf(token_id){
-        if iszero(token_id) { revert(0x00, 0x00) } 
+        if iszero(token_id) { revert_invalid_token() } 
         
         let slot := add(slot_owners_base(), token_id)
         let packed := sload(slot)
@@ -295,7 +294,7 @@ object "MiniNFT" {
       }
 
       function svg(token_id) {
-        if iszero(token_id) { revert(0x00, 0x00) } 
+        if iszero(token_id) { revert_invalid_token() } 
 
         // color is packed with owner, so we have to load owner & unpack
         let o_slot := add(slot_owners_base(), token_id)
@@ -352,7 +351,7 @@ object "MiniNFT" {
           let hi := shr(4, v)        // high nibble  
           let lo := and(v, 0x0f)     // low nibble   
 
-          mstore8(outPtr,      hex_digit(hi))       
+          mstore8(outPtr, hex_digit(hi))       
           mstore8(add(outPtr,1), hex_digit(lo))    
       }
 
@@ -398,10 +397,12 @@ object "MiniNFT" {
 
       function decode_as_uint(offset) -> uint {
         let ptr := add(4, mul(offset, 0x20)) // ptr past 4 byte selector, ex: offset = 1 => move ptr 32 bytes  
+        
         // revert if word pointed at by ptr is beyond calldatasize 
         if lt(calldatasize(), add(ptr, 0x20)) {
           revert (0x00, 0x00)
         }
+
         uint := calldataload(ptr)
       }
 
@@ -465,56 +466,29 @@ object "MiniNFT" {
         if iszero(condition) { revert(0x00, 0x00) }
       }
 
+      function revert_not_owner() {
+        revert_custom_error(0x30cd7471)
+      }
+
       function revert_invalid_token() {
-        revert_error(dataoffset("INVALID_TOKEN"))
+        revert_custom_error(0xc1ab6dc1)
       }
 
-      // ❗ TODO: this revert demads proper use of free memory pointer updates
-      // check that this is true for all the calling functions
-      function revert_error_custom(sig) {
-          // free mem ptr
-          let ptr := mload(0x40)
-
-          // custom error with selector only
-          mstore(ptr, shl(224,  sig))
-
-          revert(ptr, 0x04)
-        }
+      function revert_zero_addr() {
+        revert_custom_error(0x2e076300)
       }
 
-      // ❗ TODO: this revert demads proper use of free memory pointer updates
-      // check that this is true for all the calling functions
-      function revert_error_classic(msg, msg_size) {
-        // free mem ptr
-        let ptr := mload(0x40)
-
-        // 1. solidity style revert: store Error(string) selector
-        mstore(ptr, shl(224,  0x08c379a0))
-
-        // 2. offset to data section (32)
-        mstore(add(ptr, 0x20), 0x20)
-
-        let data_ptr := add(ptr, 0x40)
-
-        // 3. length of msg
-        mstore(data_ptr, msg_size)
-
-        // 4. copy msg from bytecode to memory
-        datacopy(add(data_ptr, 0x20), msg, msg_size)
-
-        // since error(string) is declared as returning a tuple, we include padding up to full word (32 bytes)
-        let padded := and(add(msg_size, 0x1f), not(0x1f))
-        
-        // revert
-        revert(ptr, add(padded, 0x60))
-
-        // not updating the free memory pointer cuz the only branch is revert => memory is nuked
+      // custom error with selector only
+       /*
+          no use of free memory pointer here, 
+          just overwrite whatever trash is in memory and slice first 4 bytes 
+          this is okay since the only path forward is revert 
+        */
+      function revert_custom_error(sig) {
+          mstore(0x00, shl(224,  sig))
+          revert(0x00, 0x04) 
       }
     }
-    
-    // REVERT MESSAGES
-    data "NOT_OWNER" "0x30cd7471"
-    data "INVALID_TOKEN" "0xc1ab6dc1"
 
     // ON-CHAIN SVG
     data "SVG_HEAD" "<?xml version='1.0' encoding='UTF-8'?><svg xmlns='http://www.w3.org/2000/svg' width='1600' height='1600' viewBox='0 0 1200 1200'><defs><path id='P' d='m712.5 581.25c0 10.355-8.3945 18.75-18.75 18.75s-18.75-8.3945-18.75-18.75 8.3945-18.75 18.75-18.75 18.75 8.3945 18.75 18.75z'/></defs><g fill='none' stroke='#"

@@ -87,10 +87,33 @@ revert(ptr, 0x04)
 
 Yul structure:
 
-```
-mstore(ptr, shl(224, 0x08c379a0))  // Error(string)
-...
-revert(ptr, totalSize)
+```solidity
+  function revert_error_classic(msg, msg_size) {
+    // free mem ptr
+    let ptr := mload(0x40)
+
+    // 1. solidity style revert: store Error(string) selector
+    mstore(ptr, shl(224,  0x08c379a0))
+
+    // 2. offset to data section (32)
+    mstore(add(ptr, 0x20), 0x20)
+
+    let data_ptr := add(ptr, 0x40)
+
+    // 3. length of msg
+    mstore(data_ptr, msg_size)
+
+    // 4. copy msg from bytecode to memory
+    datacopy(add(data_ptr, 0x20), msg, msg_size)
+
+    // since error(string) is declared as returning a tuple, we include padding up to full word (32 bytes)
+    let padded := and(add(msg_size, 0x1f), not(0x1f))
+
+    // revert
+    revert(ptr, add(padded, 0x60))
+
+    // not updating the free memory pointer cuz the only branch is revert => memory is nuked
+  }
 ```
 
 ---

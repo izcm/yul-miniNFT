@@ -24,6 +24,11 @@ contract MiniNFTTest is Test {
     bytes4 selectorSVG = bytes4(keccak256("svg(uint256)"));
     bytes4 selectorColorOf = bytes4(keccak256("colorOf(uint256)"));
 
+    // error signatures (match Yul implementation)
+    bytes4 errSigInvalidToken = 0xc1ab6dc1;
+    bytes4 errSigNotOwner = 0x30cd7471;
+    bytes4 errSigZeroAddress = 0x2e076300;
+
     // -----------------------
     // SETUP
     // -----------------------
@@ -289,7 +294,7 @@ contract MiniNFTTest is Test {
         address unauthorizedCaller = address(this);
         bytes memory cd = abi.encode(unauthorizedCaller, tokenId);
 
-        callMiniReverts(selectorTransfer, cd);
+        callMiniRevertsErrorSig(errSigNotOwner, selectorTransfer, cd);
     }
 
     function test_Transfer_RevertsWhenReceiverIsZero() external {
@@ -301,7 +306,7 @@ contract MiniNFTTest is Test {
         address zeroRecipient = address(0);
         bytes memory cd = abi.encode(zeroRecipient, tokenId);
 
-        callMiniReverts(selectorTransfer, cd);
+        callMiniRevertsErrorSig(errSigZeroAddress, selectorTransfer, cd);
     }
 
     // -----------------------
@@ -328,7 +333,7 @@ contract MiniNFTTest is Test {
     // OWNER OF
     // -----------------------
     function test_OwnerOf_RevertsWhenTokenNotMinted() external {
-        callMiniReverts(selectorOwnerOf, abi.encode(1));
+        callMiniRevertsErrorSig(errSigInvalidToken, selectorOwnerOf, abi.encode(1));
     }
 
     // -----------------------
@@ -377,6 +382,12 @@ contract MiniNFTTest is Test {
      */
     function callMiniReverts(bytes4 selector, bytes memory data) internal {
         vm.expectRevert(bytes(""));
+        (bool revertsAsExpected,) = deployedMini.call(bytes.concat(selector, data));
+        assertTrue(revertsAsExpected, "expectRevert: call did not revert");
+    }
+
+    function callMiniRevertsErrorSig(bytes4 errorSig, bytes4 selector, bytes memory data) internal {
+        vm.expectRevert(errorSig);
         (bool revertsAsExpected,) = deployedMini.call(bytes.concat(selector, data));
         assertTrue(revertsAsExpected, "expectRevert: call did not revert");
     }
