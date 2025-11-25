@@ -325,6 +325,13 @@ contract MiniNFTTest is Test {
     }
 
     // -----------------------
+    // OWNER OF
+    // -----------------------
+    function test_OwnerOf_RevertsWhenTokenNotMinted() external {
+        callMiniReverts(selectorOwnerOf, abi.encode(1));
+    }
+
+    // -----------------------
     // STORAGE LAYOUT
     // -----------------------
     function test_DebugSVGRaw() external {

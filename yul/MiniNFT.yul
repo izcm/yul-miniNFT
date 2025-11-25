@@ -170,6 +170,7 @@ object "MiniNFT" {
 
         let owner := unpack_owner(packed)
         if iszero(eq(owner, caller())) { revert(0x00, 0x00) }
+        if iszero(eq(owner, caller())) { revert(0x00, 0x00) }
 
         // decode as uint24
         let rgb24 := and(rbg_in, 0xffffff)
@@ -189,34 +190,6 @@ object "MiniNFT" {
         
         mstore(0x00, rgb24)
         return(0x00 , 0x20)
-      }
-      
-      // ❗ TODO: this revert demads proper use of free memory pointer updates
-      // check that this is true for all the calling functions
-      function revert_error(msg, size) {
-        // free mem ptr
-        let ptr := mload(0x40)
-
-        // 1. solidity style revert: store Error(string) selector
-        mstore(ptr, shl(240,  0x08c379a0))
-
-        // 2. offset to data section (32)
-        mstore(add(ptr, 0x20), 0x20)
-
-        let data_ptr := add(ptr, 0x40)
-
-        // 3. length of msg
-        mstore(data_ptr, size)
-
-        // 4. copy msg from bytecode to memory
-        datacopy(add(data_ptr, 0x20), msg, size)
-
-        // TESTING
-        let pad_ptr := add(data_ptr, add(size, 0x20))
-        mstore(pad_ptr, 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)
-
-        // revert
-        revert(ptr, add(size, 0x80))
       }
 
       function transfer(to, token_id) {
@@ -299,7 +272,7 @@ object "MiniNFT" {
         let packed := sload(slot)
         
         let owner := unpack_owner(packed)
-        if iszero(owner) { revert(0x00, 0x00) } // revert if no owner
+        if iszero(owner) { revert_invalid_token() } // revert if no owner
 
         mstore(0x00, owner)
         return(0x00, 0x20)
@@ -492,14 +465,56 @@ object "MiniNFT" {
         if iszero(condition) { revert(0x00, 0x00) }
       }
 
-      function safe_add(a, b) -> r {
-        r := add(a, b)
-        if or(lt(r, a), lt(r, b)) { revert(0x00, 0x00) }
+      function revert_invalid_token() {
+        revert_error(dataoffset("INVALID_TOKEN"))
+      }
+
+      // ❗ TODO: this revert demads proper use of free memory pointer updates
+      // check that this is true for all the calling functions
+      function revert_error_custom(sig) {
+          // free mem ptr
+          let ptr := mload(0x40)
+
+          // custom error with selector only
+          mstore(ptr, shl(224,  sig))
+
+          revert(ptr, 0x04)
+        }
+      }
+
+      // ❗ TODO: this revert demads proper use of free memory pointer updates
+      // check that this is true for all the calling functions
+      function revert_error_classic(msg, msg_size) {
+        // free mem ptr
+        let ptr := mload(0x40)
+
+        // 1. solidity style revert: store Error(string) selector
+        mstore(ptr, shl(224,  0x08c379a0))
+
+        // 2. offset to data section (32)
+        mstore(add(ptr, 0x20), 0x20)
+
+        let data_ptr := add(ptr, 0x40)
+
+        // 3. length of msg
+        mstore(data_ptr, msg_size)
+
+        // 4. copy msg from bytecode to memory
+        datacopy(add(data_ptr, 0x20), msg, msg_size)
+
+        // since error(string) is declared as returning a tuple, we include padding up to full word (32 bytes)
+        let padded := and(add(msg_size, 0x1f), not(0x1f))
+        
+        // revert
+        revert(ptr, add(padded, 0x60))
+
+        // not updating the free memory pointer cuz the only branch is revert => memory is nuked
       }
     }
     
     // REVERT MESSAGES
-    data "NOT_OWNER" "Not Owner"
+    data "NOT_OWNER" "0x30cd7471"
+    data "INVALID_TOKEN" "0xc1ab6dc1"
 
     // ON-CHAIN SVG
     data "SVG_HEAD" "<?xml version='1.0' encoding='UTF-8'?><svg xmlns='http://www.w3.org/2000/svg' width='1600' height='1600' viewBox='0 0 1200 1200'><defs><path id='P' d='m712.5 581.25c0 10.355-8.3945 18.75-18.75 18.75s-18.75-8.3945-18.75-18.75 8.3945-18.75 18.75-18.75 18.75 8.3945 18.75 18.75z'/></defs><g fill='none' stroke='#"

@@ -12,7 +12,7 @@ This NFT is not ERC-721 compliant, but it is a non-fungable token. Some educatio
 
 ---
 
-## 🖼️ Extract the on-chain SVG
+## 🖼️ Setup
 
 ```bash
 cast abi-decode "svg()(string)" $(cast call <CONTRACT_ADDR> "svg()" --rpc-url <RPC_URL>) > output.svg
@@ -22,7 +22,7 @@ Now open `output.svg` in any browser or image viewer.
 
 ---
 
-## 🛠 Available Make Commands
+### 🛠 Available Make Commands
 
 | Command            | Description                                            |
 | ------------------ | ------------------------------------------------------ |
@@ -37,7 +37,7 @@ Now open `output.svg` in any browser or image viewer.
 
 ---
 
-### If `.env` already has everything:
+#### If `.env` already has everything:
 
 ```
 RPC_URL=http://127.0.0.1:8545
@@ -53,3 +53,48 @@ make deploy
 make mint
 make totalSupply
 ```
+
+---
+
+## Features
+
+### 🚨 Error Handling
+
+This demo mentions two common revert styles in EVM development:
+
+#### 1. **Custom Errors (selector-only)**
+
+- ABI sends only a 4-byte selector (e.g. `InvalidToken()`).
+- No offset, no dynamic data, no padding.
+- Low gas cost, easy to decode in Foundry/Viem.
+- Preferred in modern protocol design.
+
+Yul structure:
+
+```
+mstore(ptr, shl(224, selector))
+revert(ptr, 0x04)
+```
+
+---
+
+#### 2. **Classic `Error(string)`**
+
+- ABI encodes the full message:
+  selector → offset → length → bytes → padding.
+- More expensive, but beginner-friendly and descriptive.
+- The style used by early Solidity patterns / require().
+
+Yul structure:
+
+```
+mstore(ptr, shl(224, 0x08c379a0))  // Error(string)
+...
+revert(ptr, totalSize)
+```
+
+---
+
+> MiniNFT uses **custom errors only**, but both styles are shown conceptually so students understand how revert payloads differ on the ABI level.
+
+---
