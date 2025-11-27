@@ -2,7 +2,7 @@
 
 **⚠️ DISCLAIMER: This NFT is only for educational purposes only. It is not ERC-721 compliant, not production-ready, and not intended for wallet or marketplace support**
 
-I wanted to understand the EVM on an opcode level and found that implementing an NFT was a fun way to do exactly that. 🚀
+I wanted to understand the EVM on an opcode level and found that implementing an NFT was a fun way to do exactly that.
 
 This NFT is not ERC-721 compliant, but it is a non-fungable token. Some educational stuff like bitpacking NFT specs into the `ownerOf` mapping makes this NFT implementation kind of wild, perfect for _play and learn_.
 
@@ -12,7 +12,7 @@ This NFT is not ERC-721 compliant, but it is a non-fungable token. Some educatio
 
 ---
 
-## 🖼️ Setup
+## Setup
 
 ```bash
 cast abi-decode "svg()(string)" $(cast call <CONTRACT_ADDR> "svg()" --rpc-url <RPC_URL>) > output.svg
@@ -22,7 +22,7 @@ Now open `output.svg` in any browser or image viewer.
 
 ---
 
-### 🛠 Available Make Commands
+### Available Make Commands
 
 | Command            | Description                                            |
 | ------------------ | ------------------------------------------------------ |
@@ -33,7 +33,7 @@ Now open `output.svg` in any browser or image viewer.
 | `make fork-anvil`  | Start an Anvil mainnet fork (for testing)              |
 | `make clean`       | Remove build artifacts                                 |
 
-✅ All variables (`RPC_URL`, `PRIVATE_KEY`, `CONTRACT_ADDR`, `USER_ADDR`, etc.) are loaded from `.env`.
+All variables (`RPC_URL`, `PRIVATE_KEY`, `CONTRACT_ADDR`, `USER_ADDR`, etc.) are loaded from `.env`.
 
 ---
 

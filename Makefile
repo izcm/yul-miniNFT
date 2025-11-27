@@ -31,6 +31,12 @@ deploy: build
 	@forge script $(SCRIPT) --rpc-url $(RPC_URL) --private-key $(PRIVATE_KEY) --broadcast
 	@echo "✨ Deployment finished!"
 
+deploy-sepolia: build
+	@echo "🚀 Deploying MiniNFT on Sepolia..."
+	@forge script $(SCRIPT) --rpc-url $(RPC_URL_SEPOLIA) --private-key $(PRIVATE_KEY_SEPOLIA) --broadcast
+	@echo "✨ Deployment finished!"
+
+
 # ───────────────────────────────────────────────
 # MINI ACTION
 # ───────────────────────────────────────────────
