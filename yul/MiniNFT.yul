@@ -466,6 +466,7 @@ object "MiniNFT" {
         if iszero(condition) { revert(0x00, 0x00) }
       }
 
+      // --- reverts ---
       function revert_not_owner() {
         revert_custom_error(0x30cd7471)
       }

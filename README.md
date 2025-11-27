@@ -6,8 +6,8 @@ I wanted to understand the EVM on an opcode level and found that implementing an
 
 This NFT is not ERC-721 compliant, but it is a non-fungable token. Some educational stuff like bitpacking NFT specs into the `ownerOf` mapping makes this NFT implementation kind of wild, perfect for _play and learn_.
 
-✅ It **mints**, **tracks ownership**, and **emits events**
-❌ It does **not follow the ERC-721 spec**
+✅ It **mints**, **tracks ownership**, and **emits events**  
+❌ It does **not follow the ERC-721 spec**  
 🎯 It exists purely as a playground to learn low-level EVM, storage, and gas behavior
 
 ---
