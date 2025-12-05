@@ -58,8 +58,6 @@ contract MiniNFTTest is Test {
 
             // revert if deployment failed
             if iszero(addr) { revert(0, 0) }
-
-            // sstore(deployedMini.slot, addr) //for some reason this was very buggy ?? 🔴 => store after assembly block instead
         }
 
         deployedMini = addr;
@@ -92,7 +90,7 @@ contract MiniNFTTest is Test {
     // -----------------------
     // DEPLOYMENT
     // -----------------------
-    function test_Deploy_TotalSupplyStartsAtZero() external view {
+    function test_Deploy_TotalSupplyStartsAtZero() public view {
         uint256 totalSupply = loadSlotValue(deployedMini, slotTotalSupply);
         assertEq(totalSupply, 0);
     }
@@ -100,7 +98,7 @@ contract MiniNFTTest is Test {
     // -----------------------
     // MINT
     // -----------------------
-    function test_Mint_IncrementsTotalSupply() external {
+    function test_Mint_IncrementsTotalSupply() public {
         uint256 supplyBefore = loadSlotValue(deployedMini, slotTotalSupply);
 
         callMiniStrict(selectorMint, abi.encode(address(this)));
@@ -109,7 +107,7 @@ contract MiniNFTTest is Test {
         assertEq(supplyAfter, supplyBefore + 1, "mint didn't increment total supply!");
     }
 
-    function test_Mint_IncrementsBalanceOfReceiver() external {
+    function test_Mint_IncrementsBalanceOfReceiver() public {
         address recipient = address(this);
 
         uint256 balanceBefore = getBalanceOf(recipient);
@@ -119,7 +117,7 @@ contract MiniNFTTest is Test {
         assertEq(balanceAfter, balanceBefore + 1, "mint didn't increment recipient balance!");
     }
 
-    function test_Mint_EmitsTransferEvent() external {
+    function test_Mint_EmitsTransferEvent() public {
         bytes32 sig = keccak256("Transfer(address,address,uint256)");
 
         vm.recordLogs(); // ExpectEmit seem to have some issues with pure .yul contracts
@@ -131,7 +129,7 @@ contract MiniNFTTest is Test {
         assertTrue(logIndex >= 0, "transfer event not found in logs!");
     }
 
-    function test_Mint_RevertsWhenToAddressIsZero() external {
+    function test_Mint_RevertsWhenToAddressIsZero() public {
         uint256 supplyBefore = loadSlotValue(deployedMini, slotTotalSupply);
 
         address zeroAddress = address(0);
@@ -143,7 +141,7 @@ contract MiniNFTTest is Test {
         assertEq(supplyAfter, supplyBefore);
     }
 
-    function test_Mint_UserCanMint() external {
+    function test_Mint_UserCanMint() public {
         address user = makeAddr("user");
         uint256 supplyBefore = loadSlotValue(deployedMini, slotTotalSupply);
 
@@ -154,7 +152,7 @@ contract MiniNFTTest is Test {
         assertEq(supplyAfter, supplyBefore + 1);
     }
 
-    function test_Mint_UserCanMintToOthers() external {
+    function test_Mint_UserCanMintToOthers() public {
         address minter = makeAddr("minter");
         address recipient = makeAddr("recipient");
         uint256 supplyBefore = loadSlotValue(deployedMini, slotTotalSupply);
@@ -175,7 +173,7 @@ contract MiniNFTTest is Test {
      *  0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
      *      = Transfer(address, address, uint256)
      */
-    function test_Mint_EmitsCorrectTransferEvent() external {
+    function test_Mint_EmitsCorrectTransferEvent() public {
         address from = address(0); // topic 1
         address recipient = address(this); // topic 2
         uint256 tokenId = (loadSlotValue(deployedMini, slotTotalSupply)) + 1; // skips token 0
@@ -199,7 +197,7 @@ contract MiniNFTTest is Test {
     }
 
     // ❗ TODO: fuzz this assuring owners is stored correct for multiple nfts
-    function test_Mint_StoresOwnerInCorrectSlot() external {
+    function test_Mint_StoresOwnerInCorrectSlot() public {
         address recipient = address(this);
 
         callMiniStrict(selectorMint, abi.encode(recipient));
@@ -213,7 +211,7 @@ contract MiniNFTTest is Test {
     // MINT AND TRANSFER HELPER
     // -----------------------
 
-    function test_MintAndTransfer_WorksCorrectly() external {
+    function test_MintAndTransfer_WorksCorrectly() public {
         address currentOwner = address(this);
         address newOwner = makeAddr("newOwner");
 
@@ -226,7 +224,7 @@ contract MiniNFTTest is Test {
     // -----------------------
     // TRANSFER
     // -----------------------
-    function test_Transfer_UpdatesOwnership() external {
+    function test_Transfer_UpdatesOwnership() public {
         address currentOwner = address(this);
         address newOwner = makeAddr("newOwner");
 
@@ -236,7 +234,7 @@ contract MiniNFTTest is Test {
         assertEq(actualOwnerAfterTransfer, newOwner);
     }
 
-    function test_Transfer_UpdatesBalances() external {
+    function test_Transfer_UpdatesBalances() public {
         address currentOwner = address(this);
         address newOwner = makeAddr("newOwner");
 
@@ -252,7 +250,7 @@ contract MiniNFTTest is Test {
         assertEq(toAfter, toBefore + 1, "newOwner balance should increment by 1");
     }
 
-    function test_Transfer_DoesNotOverwriteColor() external {
+    function test_Transfer_DoesNotOverwriteColor() public {
         address currentOwner = address(this);
 
         callMiniStrict(selectorMint, abi.encode(currentOwner));
@@ -268,7 +266,7 @@ contract MiniNFTTest is Test {
         assertEq(colorBefore, colorAfter);
     }
 
-    function test_Transfer_EmitsTransferEvent() external {
+    function test_Transfer_EmitsTransferEvent() public {
         address recipient = makeAddr("recipient");
 
         // Setup: mint first
@@ -285,7 +283,7 @@ contract MiniNFTTest is Test {
         assertTrue(logIndex >= 0, "transfer event not found in logs!");
     }
 
-    function test_Transfer_RevertsWhenCallerIsNotOwner() external {
+    function test_Transfer_RevertsWhenCallerIsNotOwner() public {
         address tokenOwner = makeAddr("tokenOwner");
 
         callMiniStrict(selectorMint, abi.encode(tokenOwner));
@@ -297,7 +295,7 @@ contract MiniNFTTest is Test {
         callMiniRevertsErrorSig(errSigNotOwner, selectorTransfer, cd);
     }
 
-    function test_Transfer_RevertsWhenReceiverIsZero() external {
+    function test_Transfer_RevertsWhenReceiverIsZero() public {
         address currentOwner = address(this);
 
         callMiniStrict(selectorMint, abi.encode(currentOwner));
@@ -312,7 +310,7 @@ contract MiniNFTTest is Test {
     // -----------------------
     // SET COLOR
     // -----------------------
-    function test_SetColor_SetsCorrectColor() external {
+    function test_SetColor_SetsCorrectColor() public {
         address owner = address(this);
         callMiniStrict(selectorMint, abi.encode(owner));
         uint256 tokenId = getTotalSupply();
@@ -332,14 +330,14 @@ contract MiniNFTTest is Test {
     // -----------------------
     // OWNER OF
     // -----------------------
-    function test_OwnerOf_RevertsWhenTokenNotMinted() external {
+    function test_OwnerOf_RevertsWhenTokenNotMinted() public {
         callMiniRevertsErrorSig(errSigInvalidToken, selectorOwnerOf, abi.encode(1));
     }
 
     // -----------------------
     // STORAGE LAYOUT
     // -----------------------
-    function test_DebugSVGRaw() external {
+    function test_DebugSVGRaw() public {
         callMiniStrict(selectorMint, abi.encode(address(this)));
         uint256 tokenId = loadSlotValue(deployedMini, slotTotalSupply);
 
@@ -351,7 +349,7 @@ contract MiniNFTTest is Test {
         uint256 pos = bytePosition(ret, 0);
     }
 
-    function test_TotalSupply_ReturnsCorrectValue() external {
+    function test_TotalSupply_ReturnsCorrectValue() public {
         callMiniStrict(selectorMint, abi.encode(address(this)));
 
         uint256 supply = getTotalSupply();
@@ -364,7 +362,7 @@ contract MiniNFTTest is Test {
     // 🔧 HELPERS
     // -----------------------
 
-    // --- external calls  ---
+    // --- public calls  ---
     function callMini(bytes4 selector, bytes memory data) internal returns (bool ok, bytes memory returnData) {
         (ok, returnData) = deployedMini.call(bytes.concat(selector, data));
     }

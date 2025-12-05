@@ -4,7 +4,6 @@
   📚 Educational Yul Demo 📚 
 
   - Free-mint NFT
-  - Max supply 2^240
   - Not ERC-721 compliant (no EIP-165, no safeTransfer, raw SVG, etc.)
   - Cannot be sold through marketplace, only minted and transferred
   - Focus is on exploring the EVM, not production rules
@@ -16,7 +15,7 @@
     
   0x00 - TotalSupply
     32 bits reserved for flags => max cap is 2^224
-    Lets bitpack totalSupply with something fun:
+    **TODO:** Lets bitpack totalSupply with something fun:
       - 8 MSBits will be the suffix of whatever address initialized MiniNFT
       - Any address that shares the same 8 LSB as initializer, has authority 😈 to set flags: 
       
